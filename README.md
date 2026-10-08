@@ -20,6 +20,7 @@ Flashcards on your own repetition ladder: decks, map-click cards, schedules, sta
 3. **Bindings**, in the Pages project under Settings:
    - D1 database binding: variable name `DB` → database `stufen`.
    - Variable (encrypted secret): `STUFEN_PASSWORD` → the password you want to sign in with.
+   - Variable (encrypted secret): `GOOGLE_MAPS_KEY` → a Google Maps JavaScript API key (optional; without it maps are drawn by the page).
 4. **Redeploy** once so the bindings apply (Deployments → Retry deployment).
 
 The tables are created on first use. Every push to `main` is published automatically.

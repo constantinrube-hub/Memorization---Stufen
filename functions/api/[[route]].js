@@ -36,6 +36,9 @@ export async function onRequest({request, env}){
     return json({ok: true}, 200, {'set-cookie': await makeCookie(env, secure)});
   }
 
+  /* what the page needs to know about this site; the Google Maps key lives in a Pages variable, not in the repository */
+  if(route === 'config' && m === 'GET') return json({gmaps: env.GOOGLE_MAPS_KEY || ''});
+
   /* ----- documents ----- */
   if(route === 'doc'){
     const path = url.searchParams.get('path');

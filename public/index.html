@@ -724,7 +724,7 @@ const rowLabel = (d, n) => d.fields.filter(x => x.kind === 'text').map(x => n.f[
 /* ---------- zoom and pan: a view is {k: zoom factor, x, y: top-left corner as fractions of the map} ---------- */
 const VIEW = {study: {k: 1, x: 0, y: 0}, ed: {k: 1, x: 0, y: 0}, stat: {k: 1, x: 0, y: 0}}, ZMAX = 40;
 function clampView(v){
-  v.k = Math.min(ZMAX, Math.max(1, v.k || 1)); const vh = (v.r || 1) / v.k;   // share of the map's height the box shows
+  v.k = Math.min(v.zm || ZMAX, Math.max(1, v.k || 1)); const vh = (v.r || 1) / v.k;   // share of the map's height the box shows
   v.x = Math.min(1 - 1 / v.k, Math.max(0, v.x || 0)); v.y = vh >= 1 ? (1 - vh) / 2 : Math.min(1 - vh, Math.max(0, v.y || 0));   // a box taller than the map keeps the map in its middle
   return v;
 }
@@ -732,17 +732,17 @@ function clampView(v){
 const curView = key => key === 'study' && S.study.shown && S.study.rview ? S.study.rview : VIEW[key];
 function zoomAt(v, factor, fx, fy){   // fx, fy: where in the map box the zoom is anchored (0..1)
   const r = v.r || 1, mx = v.x + fx / v.k, my = v.y + fy * r / v.k;
-  v.k = Math.min(ZMAX, Math.max(1, v.k * factor)); v.x = mx - fx / v.k; v.y = my - fy * r / v.k;
+  v.k = Math.min(v.zm || ZMAX, Math.max(1, v.k * factor)); v.x = mx - fx / v.k; v.y = my - fy * r / v.k;
   return clampView(v);
 }
 /* keep the current view if the box is on screen; otherwise move (and zoom out if needed) so it is */
 function fitView(v, b){
   const m = 0.04 / v.k, r = v.r || 1;
-  if(b.x0 >= v.x + m && b.x1 <= v.x + 1 / v.k - m && b.y0 >= v.y + m && b.y1 <= v.y + r / v.k - m) return {k: v.k, x: v.x, y: v.y, r};
+  if(b.x0 >= v.x + m && b.x1 <= v.x + 1 / v.k - m && b.y0 >= v.y + m && b.y1 <= v.y + r / v.k - m) return {k: v.k, x: v.x, y: v.y, r, zm: v.zm};
   const k = Math.min(v.k, 0.7 / Math.max(b.x1 - b.x0, (b.y1 - b.y0) / r, 1e-6));
-  return clampView({k, x: (b.x0 + b.x1) / 2 - 0.5 / Math.max(1, k), y: (b.y0 + b.y1) / 2 - 0.5 * r / Math.max(1, k), r});
+  return clampView({k, x: (b.x0 + b.x1) / 2 - 0.5 / Math.max(1, k), y: (b.y0 + b.y1) / 2 - 0.5 * r / Math.max(1, k), r, zm: v.zm});
 }
-const vbOf = (v, H) => [v.x * 1000, v.y * H, 1000 / v.k, H * (v.r || 1) / v.k].map(n => +n.toFixed(3)).join(' ');
+const vbOf = (v, H) => [v.x * 1000, v.y * H, 1000 / v.k, H * (v.r || 1) / v.k].map(n => +n.toFixed(6)).join(' ');
 /* on a phone a wide map would be a thin strip: give its box the height the screen has to spare; the map then has room to be zoomed and moved in */
 function phoneR(f){
   if(window.innerWidth > 820) return 1;
@@ -768,6 +768,7 @@ function fitMarks(rm){   // markers keep their size on screen whatever the zoom
 function applyView(rm, v){
   clampView(v);
   $('svg', rm).setAttribute('viewBox', vbOf(v, +rm.dataset.h)); fitMarks(rm);
+  if(rm.classList.contains('gg')) gSync();
 }
 
 const RCSS = `.rmap{position:relative;margin-inline:auto;max-width:100%;line-height:0;border-radius:6px;overflow:hidden}
@@ -810,7 +811,16 @@ const RCSS = `.rmap{position:relative;margin-inline:auto;max-width:100%;line-hei
 .cv{fill:none;stroke:#b0006d;stroke-opacity:.6;stroke-width:3.2;stroke-linecap:round;pointer-events:none}
 .gm.nolab .lbs{display:none}
 .gm .zc button{background:#fff;color:#3c4043;border-color:#dadce0;box-shadow:0 1px 3px rgba(60,64,67,.3)}
-.gm .zc button.on{color:#1a73e8}`;
+.gm .zc button.on{color:#1a73e8}
+.rmap.gg{background:#e8eaed}
+.gbg{position:absolute;left:0;top:0;transform-origin:0 0}
+.rmap.gg svg{z-index:1} .rmap.gg .zc{z-index:2}
+.gm.gg .pb{fill:rgba(0,0,0,0);stroke:none}
+#clickmap.live .gm.gg .pb:hover{fill:rgba(26,115,232,.16)}
+#clickmap.live .gm.gg.nobd .pb:hover{fill:rgba(0,0,0,0)}
+.gm.gg .ib{stroke:#59636d;stroke-width:1.1}
+.gm.gg.sat .ib,.gm.gg.sat .ol{stroke:#fff;stroke-opacity:.9}
+.gm.gg .pp{fill-opacity:.4} .gm.gg .pw,.gm.gg .pk{fill-opacity:.4}`;
 const dOf = (polys, H) => polys.map(p => 'M' + p.map(([x, y]) => +(x * 1000).toFixed(2) + ' ' + +(y * H).toFixed(2)).join('L') + 'Z').join('');
 /* a GeoJSON map has no picture: its base is the outline of every row's shape, rebuilt only when a shape changes */
 const baseC = new Map(); let geoVer = 0;
@@ -865,22 +875,82 @@ function ctxOf(f){   // null until the world file has arrived; the map is redraw
     if(S.ed) renderEd(); else if(S.tab === 'study' && S.study.on && !drag) render(); });
   return null;
 }
+/* ---------- the real Google map under a map with the Google-like look ----------
+   The page stays in charge of zoom, pan and clicks; the Google map is a picture underneath that is moved to match.
+   It is created once per page load and carried from card to card and view to view: one billable map load per opening.
+   Google's map only comes at whole zoom levels, so in between it is scaled; when a zoom gesture ends the view settles on a whole level. */
+const G = {key: '', state: 0, map: null, div: null, off: false, type: 'roadmap', styles: '', snapT: 0, why: ''};   // state: 0 not asked for, 1 loading, 2 ready, -1 failed
+try{ G.off = localStorage.getItem('stufen-gmap') === '0'; G.type = localStorage.getItem('stufen-gtype') === 'hybrid' ? 'hybrid' : 'roadmap'; }catch(e){}
+const gWanted = () => !!G.key && G.state >= 0 && !G.off;
+/* which map box holds the Google map: the region editor while it is open, otherwise the study map */
+const gFor = (f, zoom) => gWanted() && isGm(f) && !!f.geo && !!f.geo.m && (zoom === 'ed' || (zoom === 'study' && !S.ed));
+/* how far in a map may be zoomed: to about street level */
+const gZm = f => Math.max(ZMAX, 256 * 2 ** 18 / (1000 * 2 * Math.PI * f.geo.s));
+const G_QUIET = [{featureType: 'poi', stylers: [{visibility: 'off'}]}, {featureType: 'transit', stylers: [{visibility: 'off'}]}];
+const G_BARE = [{elementType: 'labels', stylers: [{visibility: 'off'}]}, {featureType: 'poi', stylers: [{visibility: 'off'}]}, {featureType: 'transit', stylers: [{visibility: 'off'}]}];
+function gFail(why){
+  G.state = -1; G.why = why; if(G.div) G.div.remove();
+  if(S.ed) renderEd(); render();   // drawn again in the Google-like look
+}
+function gLoad(){
+  if(G.state !== 0 || !gWanted()) return; G.state = 1;
+  window.gm_authFailure = () => gFail('Google refused the key.');
+  window.__gmReady = () => {
+    try{ G.div = document.createElement('div'); G.div.className = 'gbg';
+      G.map = new google.maps.Map(G.div, {center: {lat: 0, lng: 0}, zoom: 3, mapTypeId: G.type, disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false, clickableIcons: false, disableDoubleClickZoom: true, isFractionalZoomEnabled: false, backgroundColor: '#e8eaed', styles: G_QUIET});
+      G.state = 2; gSync(); if(S.view === 'settings') render(); }
+    catch(e){ gFail('The Google map could not be started.'); }
+  };
+  const sc = document.createElement('script'); sc.async = true; sc.onerror = () => gFail('Google Maps could not be reached.');
+  sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(G.key) + '&v=weekly&loading=async&callback=__gmReady';
+  document.head.appendChild(sc);
+}
+/* the whole Google zoom level nearest to a view, and how much the picture is scaled to match the view exactly */
+function gLevel(f, v, W){ const zf = Math.log2(W * v.k * 2 * Math.PI * f.geo.s / 256), z = Math.max(1, Math.min(21, Math.round(zf))); return {zf, z, sc: 2 ** (zf - z)}; }
+/* put the Google map into the map box that is on screen and move it to that box's view */
+function gSync(){
+  const rm = $('#edmap .rmap.gg') || $('#clickmap .rmap.gg');
+  if(rm && G.state === 0) gLoad();
+  if(G.state !== 2) return;
+  if(!rm){ if(G.div.parentNode) G.div.remove(); return; }
+  const d = S.decks[S.cur], f = d && d.fields.find(x => x.id === rm.dataset.fid), W = rm.clientWidth, H = rm.clientHeight; if(!f || !f.geo || !W || !H) return;
+  if(G.div.parentNode !== rm) rm.insertBefore(G.div, rm.firstChild);
+  const v = curView(rm.dataset.z), L = gLevel(f, v, W), r = v.r || 1;
+  let [lon, lat] = geoInv(f)(v.x + 0.5 / v.k, v.y + 0.5 * r / v.k); if(lon > 180) lon -= 360;
+  const w = (W / L.sc).toFixed(1) + 'px', h = (H / L.sc).toFixed(1) + 'px';
+  if(G.div.style.width !== w) G.div.style.width = w; if(G.div.style.height !== h) G.div.style.height = h;
+  G.div.style.transform = 'scale(' + L.sc.toFixed(5) + ')';
+  G.map.moveCamera({center: {lat, lng: lon}, zoom: L.z});
+  const st = rm.classList.contains('nolab') ? 'bare' : 'quiet';   // names hidden until the answer, or switched off with the Aa button
+  if(G.styles !== st){ G.styles = st; G.map.setOptions({styles: st === 'bare' ? G_BARE : G_QUIET}); }
+  if(G.map.getMapTypeId() !== G.type) G.map.setMapTypeId(G.type);
+}
+/* after a zoom gesture: settle on the nearest whole Google level, so the map is sharp and its names have their normal size */
+function gSnap(rm, now){
+  clearTimeout(G.snapT); if(!rm || !rm.classList.contains('gg')) return;
+  const go = () => { if(drag || !rm.isConnected || G.state !== 2) return; const d = S.decks[S.cur], f = d && d.fields.find(x => x.id === rm.dataset.fid), v = curView(rm.dataset.z), W = rm.clientWidth; if(!f || !W || v.k <= 1.001) return;
+    const L = gLevel(f, v, W), k = v.k / L.sc; if(k < 1 || k > (v.zm || ZMAX) || Math.abs(L.sc - 1) < 0.004) return;
+    zoomAt(v, k / v.k, 0.5, 0.5); applyView(rm, v); };
+  if(now) go(); else G.snapT = setTimeout(go, 220);
+}
+window.addEventListener('resize', () => { if(G.state === 2) gSync(); });
 let maskN = 0;
 function regionHtml(f, value, o = {}){
   const H = 1000 * (f.ar || 1), hs = +H.toFixed(1), polys = parseRegion(value), mid = 'm' + (++maskN), vec = f.map === 'vec';
+  const gg = !!o.zoom && gFor(f, o.zoom); if(o.zoom) (o.view || VIEW[o.zoom]).zm = gg ? gZm(f) : 0;
   const v = o.zoom ? clampView(o.view || VIEW[o.zoom]) : {k: 1, x: 0, y: 0}, u = 1.4 / v.k, br = o.zoom ? v.r || 1 : 1;
   const pts = p => p.map(([x, y]) => (x * 1000).toFixed(2) + ',' + (y * H).toFixed(2)).join(' ');
   const dot = (cls, x, y, r) => `<circle class="${cls}" cx="${(x * 1000).toFixed(2)}" cy="${(y * H).toFixed(2)}" r="${(r * u).toFixed(2)}" data-r="${r}"/>`;
   const path = (cls, ps) => ps.length ? `<path class="${cls}" fill-rule="evenodd" d="${dOf(ps, H)}"/>` : '';
-  const gm = isGm(f), cx = (gm && ctxOf(f)) || NOCTX, lab = gm && f.geo && o.zoom;
-  return `<div class="rmap${vec ? ' vec' : ''}${gm ? ' gm' : ''}${f.nobd ? ' nobd' : ''}${lab && (!labelsOn || (f.nolab && o.quiz)) ? ' nolab' : ''}"${lab && f.nolab && o.quiz ? ' data-q="1"' : ''}${o.zoom ? ` data-z="${o.zoom}" data-fid="${f.id}"` : ''}${lab ? ` data-w="${(f.geo.b[2] - f.geo.b[0]).toFixed(4)}"` : ''}${o.zoom === 'study' && f.home ? ` data-home="${[f.home.k, f.home.x, f.home.y].join(',')}"` : ''} data-h="${hs}" style="${br > 1 ? `aspect-ratio:1000/${(hs * br).toFixed(1)};width:100%` : `aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))`}"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
-    (vec ? `<rect class="sea" width="1000" height="${hs}"/>` + cx.under + (o.d ? baseOf(o.d, f) : '') + cx.over : `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`) +
+  const gm = isGm(f), cx = (gm && !gg && ctxOf(f)) || NOCTX, lab = gm && f.geo && o.zoom;
+  return `<div class="rmap${vec ? ' vec' : ''}${gm ? ' gm' : ''}${gg ? ' gg' + (G.type === 'hybrid' ? ' sat' : '') : ''}${f.nobd ? ' nobd' : ''}${lab && (!labelsOn || (f.nolab && o.quiz)) ? ' nolab' : ''}"${lab && f.nolab && o.quiz ? ' data-q="1"' : ''}${o.zoom ? ` data-z="${o.zoom}" data-fid="${f.id}"` : ''}${lab ? ` data-w="${(f.geo.b[2] - f.geo.b[0]).toFixed(4)}"` : ''}${o.zoom === 'study' && f.home ? ` data-home="${[f.home.k, f.home.x, f.home.y].join(',')}"` : ''} data-h="${hs}" style="${br > 1 ? `aspect-ratio:1000/${(hs * br).toFixed(1)};width:100%` : `aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))`}"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
+    (vec ? (gg ? '' : `<rect class="sea" width="1000" height="${hs}"/>`) + cx.under + (o.d ? baseOf(o.d, f) : '') + cx.over : `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`) +
     path('pg', o.ghost || []) +
     (o.ring && polys.length ? `<mask id="${mid}" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="${hs}"><rect width="1000" height="${hs}" fill="#fff"/><path fill="#000" fill-rule="evenodd" d="${dOf(polys, H)}"/></mask><g mask="url(#${mid})"><path class="pr" style="vector-effect:none" d="${dOf(polys, H)}" stroke-width="${(o.ring * 2000).toFixed(1)}"/></g>` : '') +
     path('pk', o.close || []) + path(o.wrongCls || 'pw', o.wrong || []) + path('pp', polys) + (o.extra ? o.extra(pts, dot) : '') +
     (o.zoom && vec && f.cov && f.cov.show && (f.cov.show === 2 || !o.quiz) ? covPath(f) : '') +
     (lab && f.lab && o.d && (!f.lab.after || !o.quiz) ? groupLabels(o.d, f) : '') + (lab ? cx.labels : '') + (o.click ? dot('pc', o.click.x, o.click.y, 6.5) : '') + `</svg>` +
-    (o.zoom ? `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button>${lab && !(f.nolab && o.quiz) ? `<button data-act="labels" class="${labelsOn ? 'on' : ''}" title="City names on or off" aria-label="City names on or off" style="font-size:12px">Aa</button>` : ''}${vec ? `<button data-act="borders" class="${f.nobd ? '' : 'on'}" title="Borders on or off" aria-label="Borders on or off" style="font-size:14px">▦</button>` : ''}${vec && f.cov ? `<button data-act="covTog" class="${f.cov.show ? 'on' : ''}" title="${['Coverage dots: off', 'Coverage dots: after the answer', 'Coverage dots: always'][f.cov.show || 0]}. Click to change." aria-label="Coverage dots" style="font-size:13px">${f.cov.show === 2 ? '⁙' : '⁖'}</button>` : ''}</div>` : '') + `</div>`;
+    (o.zoom ? `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button>${lab && !(f.nolab && o.quiz) ? `<button data-act="labels" class="${labelsOn ? 'on' : ''}" title="City names on or off" aria-label="City names on or off" style="font-size:12px">Aa</button>` : ''}${vec ? `<button data-act="borders" class="${f.nobd ? '' : 'on'}" title="Borders on or off" aria-label="Borders on or off" style="font-size:14px">▦</button>` : ''}${gg ? `<button data-act="gType" class="${G.type === 'hybrid' ? 'on' : ''}" title="Satellite or standard map" aria-label="Satellite or standard map" style="font-size:14px">◐</button>` : ''}${vec && f.cov ? `<button data-act="covTog" class="${f.cov.show ? 'on' : ''}" title="${['Coverage dots: off', 'Coverage dots: after the answer', 'Coverage dots: always'][f.cov.show || 0]}. Click to change." aria-label="Coverage dots" style="font-size:13px">${f.cov.show === 2 ? '⁙' : '⁖'}</button>` : ''}</div>` : '') + `</div>`;
 }
 /* names of a parent unit (state, province) drawn once per group of rows, in the middle of the group's area */
 function groupLabels(d, f){
@@ -2441,7 +2511,18 @@ function vSettings(){
       return `<label class="inline"><input type="checkbox" data-apply="${k}" id="ap-${k.replace(/[|:]/g, '-')}"${S.ticks.has(k) ? ' checked' : ''}${uses ? ' disabled' : ''}> ${esc(x.d.name)}${x.d.clusters.length > 1 ? ' · ' + esc(x.cl.name) : ''}${uses ? ' (uses it)' : x.cl.sid === s.id ? ' (older version)' : ''}</label>`; }).join('')}</div>
     <div class="row"><button class="btn pri" data-act="applySched" data-v="${s.id}">Apply to the ticked decks</button>${stale.length ? `<button class="btn" data-act="pushSched" data-v="${s.id}">Update the ${pl(stale.length, 'cluster')} on an older version</button>` : ''}</div>` : ''}</div>`; }).join('')}
   ${S.lib.length ? '' : `<p class="muted">No saved schedules yet.</p>`}
-  <div class="row"><button class="btn" data-act="newSched">+ New schedule</button></div>` + vBackups();
+  <div class="row"><button class="btn" data-act="newSched">+ New schedule</button></div>` + vBackups() + vSite();
+}
+/* what only the own site has: the real Google map and the sign-in */
+function vSite(){
+  const own = window.claude && window.claude.signOut; if(!own && !G.key) return '';
+  const st = !G.key ? 'No Google Maps key is set for this site, so maps are drawn by the page.' : G.state === -1 ? esc(G.why) + ' Maps are drawn by the page until you reload.' : G.off ? 'Switched off in this browser. Maps are drawn by the page.' : G.state === 2 ? 'The Google map is loaded. It counts as one map load per opening of the page, however many cards you study.' : 'The Google map loads when a map card is first shown: one map load per opening of the page.';
+  return `<h2>This site</h2>
+  <div class="panel"><h3>Google map</h3>
+    <p class="muted small">Maps with the Google-like look are shown on the real Google map, with your shapes on top. ${st}</p>
+    ${G.key ? `<label class="inline"><input type="checkbox" id="g-on"${G.off ? '' : ' checked'}> Use the real Google map in this browser</label>` : ''}
+    <p class="muted small">This app includes Google Maps features and content. Their use is subject to the <a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noopener">Google Maps Additional Terms of Service</a> and the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.</p></div>
+  ${own ? `<div class="panel"><h3>Sign-in</h3><p class="muted small">This browser stays signed in for 180 days. Sign out on a device that is not yours.</p><div class="row"><button class="btn" data-act="signOut">Sign out</button></div></div>` : ''}`;
 }
 /* ---------- merging decks ---------- */
 /* fraction on a GeoJSON map -> longitude/latitude (the reverse of geoFn) */
@@ -2671,8 +2752,11 @@ const ACT = {
     openEd(d, n, fid); },
   mapLook(d, v){ const f = d.fields.find(f => f.id === v); if(!f) return; if(isGm(f)) delete f.style; else f.style = 'gmap'; geoVer++; saveDeck(d); render(); },
   sideTog(){ S.sideOpen = !S.sideOpen; renderSide(); },
-  labels(d, v, b){ labelsOn = !labelsOn; try{ localStorage.setItem('stufen-labels', labelsOn ? '1' : '0'); }catch(e){} $$('.rmap.gm[data-w]:not([data-q])').forEach(rm => rm.classList.toggle('nolab', !labelsOn)); b.classList.toggle('on', labelsOn); },
-  zoom(d, v, b){ const rm = b.closest('.rmap'), w = curView(rm.dataset.z); if(v === 'fit'){ const hm = rm.dataset.home && rm.dataset.home.split(',').map(Number), at = hm && Math.abs(w.k - hm[0]) < 0.01 && Math.abs(w.x - hm[1]) < 0.005 && Math.abs(w.y - hm[2]) < 0.005; Object.assign(w, hm && !at ? {k: hm[0], x: hm[1], y: hm[2]} : {k: 1, x: 0, y: 0}); } else zoomAt(w, v === 'in' ? 1.6 : 1 / 1.6, 0.5, 0.5); applyView(rm, w); },
+  labels(d, v, b){ labelsOn = !labelsOn; try{ localStorage.setItem('stufen-labels', labelsOn ? '1' : '0'); }catch(e){} $$('.rmap.gm[data-w]:not([data-q])').forEach(rm => rm.classList.toggle('nolab', !labelsOn)); b.classList.toggle('on', labelsOn); gSync(); },
+  zoom(d, v, b){ const rm = b.closest('.rmap'), w = curView(rm.dataset.z); if(v === 'fit'){ const hm = rm.dataset.home && rm.dataset.home.split(',').map(Number), at = hm && Math.abs(w.k - hm[0]) < 0.01 && Math.abs(w.x - hm[1]) < 0.005 && Math.abs(w.y - hm[2]) < 0.005; Object.assign(w, hm && !at ? {k: hm[0], x: hm[1], y: hm[2]} : {k: 1, x: 0, y: 0}); } else zoomAt(w, rm.classList.contains('gg') ? (v === 'in' ? 2 : 0.5) : (v === 'in' ? 1.6 : 1 / 1.6), 0.5, 0.5); applyView(rm, w); if(v !== 'fit') gSnap(rm, true); },
+  gType(d, v, b){ G.type = G.type === 'hybrid' ? 'roadmap' : 'hybrid'; try{ localStorage.setItem('stufen-gtype', G.type); }catch(e){} $$('.rmap.gg').forEach(rm => { rm.classList.toggle('sat', G.type === 'hybrid'); const x = $('[data-act="gType"]', rm); if(x) x.classList.toggle('on', G.type === 'hybrid'); }); gSync(); },
+  gOff(){ G.off = !G.off; try{ localStorage.setItem('stufen-gmap', G.off ? '0' : '1'); }catch(e){} if(G.off && G.div) G.div.remove(); ctxC.clear(); render(); },
+  signOut(){ if(window.claude && window.claude.signOut) window.claude.signOut(); },
   geoOpen(d){ S.geoDest = d.id; $('#geopick').click(); },
   edCancel(){ S.ed = null; renderEd(); },
   edTarget(d, v){ S.ed.target = v; renderEd(); },
@@ -2702,6 +2786,7 @@ const ptrs = new Map(); let drag = null;
 const mapRect = rm => rm.getBoundingClientRect();
 function mapClick(rm, cx, cy){
   const r = mapRect(rm), v = curView(rm.dataset.z), cl = n => Math.max(0, Math.min(1, n)), d = S.decks[S.cur];
+  if(rm.classList.contains('gg')){ const a = document.elementsFromPoint(cx, cy).map(el => el.closest && el.closest('.gbg a[href]')).find(Boolean); if(a){ window.open(a.href, '_blank', 'noopener'); return; } }   // Google's own links under the shapes (terms, the logo) stay usable
   const y0 = v.y + (cy - r.top) / r.height * (v.r || 1) / v.k; if(y0 < -0.001 || y0 > 1.001) return;   // a tap on the empty band above or below the map is not an answer
   const x = cl(v.x + (cx - r.left) / r.width / v.k), y = cl(y0);
   if(rm.closest('#edmap')) edClick(d, x, y); else if(rm.closest('#clickmap.live')) mapAnswer(d, x, y, 3 / (r.width * v.k));
@@ -2715,7 +2800,7 @@ document.addEventListener('pointerdown', e => {
   const v = curView(rm.dataset.z);
   if(ptrs.size === 1) drag = {rm, x0: e.clientX, y0: e.clientY, v0: {k: v.k, x: v.x, y: v.y}, moved: false, pinch: null};
   else if(ptrs.size === 2 && drag){ const [a, b] = [...ptrs.values()], r = mapRect(rm), fx = ((a.x + b.x) / 2 - r.left) / r.width, fy = ((a.y + b.y) / 2 - r.top) / r.height;
-    drag.moved = true; drag.pinch = {d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: v.k, mx: v.x + fx / v.k, my: v.y + fy * (v.r || 1) / v.k}; }
+    drag.moved = true; drag.zoomed = true; drag.pinch = {d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: v.k, mx: v.x + fx / v.k, my: v.y + fy * (v.r || 1) / v.k}; }
 });
 document.addEventListener('pointermove', e => {
   if(!drag || !ptrs.has(e.pointerId)) return;
@@ -2723,7 +2808,7 @@ document.addEventListener('pointermove', e => {
   const rm = drag.rm; if(!rm.isConnected){ drag = null; ptrs.clear(); return; }
   const r = mapRect(rm), v = curView(rm.dataset.z);
   if(drag.pinch && ptrs.size >= 2){ const [a, b] = [...ptrs.values()], p = drag.pinch, fx = ((a.x + b.x) / 2 - r.left) / r.width, fy = ((a.y + b.y) / 2 - r.top) / r.height;
-    v.k = Math.min(ZMAX, Math.max(1, p.k0 * Math.hypot(a.x - b.x, a.y - b.y) / p.d0)); v.x = p.mx - fx / v.k; v.y = p.my - fy * (v.r || 1) / v.k; applyView(rm, v); return; }
+    v.k = Math.min(v.zm || ZMAX, Math.max(1, p.k0 * Math.hypot(a.x - b.x, a.y - b.y) / p.d0)); v.x = p.mx - fx / v.k; v.y = p.my - fy * (v.r || 1) / v.k; applyView(rm, v); return; }
   const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
   if(!drag.moved && Math.hypot(dx, dy) < 6) return;
   drag.moved = true; rm.classList.add('pan');
@@ -2735,6 +2820,7 @@ function pointerEnd(e, cancel){
   const g = drag; if(!g) return;
   if(ptrs.size){ const p = [...ptrs.values()][0], v = curView(g.rm.dataset.z); g.pinch = null; g.x0 = p.x; g.y0 = p.y; g.v0 = {k: v.k, x: v.x, y: v.y}; return; }
   drag = null; g.rm.classList.remove('pan');
+  if(g.zoomed) gSnap(g.rm);
   if(!cancel && !g.moved && g.rm.isConnected) mapClick(g.rm, e.clientX, e.clientY);
 }
 document.addEventListener('pointerup', e => pointerEnd(e, false));
@@ -2746,7 +2832,7 @@ document.addEventListener('wheel', e => {
   e.preventDefault();
   const r = mapRect(rm), step = e.deltaMode ? e.deltaY * 30 : e.deltaY;
   zoomAt(v, Math.exp(-Math.max(-120, Math.min(120, step)) * (e.ctrlKey ? 0.012 : 0.0028)), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
-  applyView(rm, v);
+  applyView(rm, v); gSnap(rm);
 }, {passive: false});
 
 /* one floating note for anything carrying data-tip (chart columns, stage rows, map shapes) */
@@ -2814,6 +2900,7 @@ function onChange(e){
   if(t.id === 'set-strict'){ if(t.checked) S.meta.strict = true; else delete S.meta.strict; saveMeta(); render(); return; }
   if(t.id === 'bk-days'){ S.meta.backupDays = Math.min(365, Math.max(0, Math.round(+t.value) || 0)); delete S.meta.snooze; saveMeta(); render(); return; }
   if(t.id === 'bk-auto'){ S.meta.auto = t.checked; saveMeta(); return; }
+  if(t.id === 'g-on'){ ACT.gOff(); return; }
   if(t.id === 'vac-n'){ S.vac.n = Math.min(365, Math.max(1, Math.round(+t.value) || 1)); t.value = S.vac.n; return; }
   if(t.id === 'vac-dir'){ S.vac.dir = +t.value; return; }
   if(t.id === 'vac-deck'){ S.vac.deck = t.value; return; }
@@ -2896,8 +2983,11 @@ document.addEventListener('keydown', e => {
   else if((e.key === ' ' || e.key === 'Enter') && al.length === 1){ e.preventDefault(); grade(d, al[0]); }
 });
 
+/* a redraw rebuilds the map box: put the Google map back into it */
+{ const r0 = render, e0 = renderEd; render = function(){ r0.apply(this, arguments); gSync(); }; renderEd = function(){ e0.apply(this, arguments); gSync(); }; }
+
 /* ---------- start ---------- */
-window.__stufen = {guessFolder, folderTree, placesJson, covMissing, phoneR, VIEW,covParse, covC, recrop, geoInvOf: f => geoInv(f), healthRun, inSel,resume, sendPulse, TAB, seen, forceCheck: () => { lastCheck = 0; return resume(); },lettersOf, dayPlan, simulate, shareOut, majorOf, hintsOf, replan: () => { planC = null; stateV++; },nextAcross, newLimit, snapshot, counts, nextCard, centroidOf, markOf, setMark, schedule, parseStages, fmtDur, hitRegion, parseRegion, fmtRegion, geoRead, geoProject, geoSimplify, geoAdj, fitView, geoFn, geoInv, statsOf, dayKey, S};
+window.__stufen = {G, gSync, gLevel, guessFolder, folderTree, placesJson, covMissing, phoneR, VIEW,covParse, covC, recrop, geoInvOf: f => geoInv(f), healthRun, inSel,resume, sendPulse, TAB, seen, forceCheck: () => { lastCheck = 0; return resume(); },lettersOf, dayPlan, simulate, shareOut, majorOf, hintsOf, replan: () => { planC = null; stateV++; },nextAcross, newLimit, snapshot, counts, nextCard, centroidOf, markOf, setMark, schedule, parseStages, fmtDur, hitRegion, parseRegion, fmtRegion, geoRead, geoProject, geoSimplify, geoAdj, fitView, geoFn, geoInv, statsOf, dayKey, S};
 document.head.appendChild(Object.assign(document.createElement('style'), {textContent: RCSS}));
 async function boot(){
   render();
@@ -2913,6 +3003,7 @@ async function boot(){
   render();
   use('assets').then(a => { assets = a; autoSnap(); if(S.view === 'settings'){ render(); loadUsage(); } });
   use('downloads').then(x => { downloads = x; if(x && !S.study.on) render(); });
+  if(window.claude && window.claude.config) window.claude.config().then(c => { G.key = (c && c.gmaps) || ''; if(G.key){ ctxC.clear(); render(); } }).catch(() => {});
 }
 boot();
 })();

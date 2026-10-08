@@ -133,5 +133,5 @@
   const ready = (async () => {   // the first thing the page asks for waits until the visitor is signed in
     try{ const r = await (await call('GET', '/api/session')).json(); if(!r.in) await signIn(); }catch(e){}
   })();
-  window.claude = {writers: 48, use: async n => { await ready; return ({db, assets, downloads})[n] || null; }, signOut: async () => { try{ await fetch('/api/logout', {method: 'POST'}); }catch(e){} location.reload(); }};
+  window.claude = {writers: 48, config: async () => { await ready; try{ return await (await call('GET', '/api/config')).json(); }catch(e){ return {}; } }, use: async n => { await ready; return ({db, assets, downloads})[n] || null; }, signOut: async () => { try{ await fetch('/api/logout', {method: 'POST'}); }catch(e){} location.reload(); }};
 })();
