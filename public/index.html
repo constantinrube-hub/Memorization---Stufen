@@ -1847,21 +1847,23 @@ function restoreStart(file, o){
   const items = (Array.isArray(o.decks) ? o.decks : o.deck ? [{deck: o.deck, notes: o.notes}] : [])
     .filter(x => x && x.deck && typeof x.deck === 'object' && Array.isArray(x.deck.fields))
     .map(x => ({deck: x.deck, notes: (Array.isArray(x.notes) ? x.notes : []).filter(n => n && typeof n === 'object'), log: Array.isArray(x.log) ? x.log : [], on: true}));
-  S.imp = items.length ? {step: 'restore', kind: 'restore', file, items, mode: 'replace', keep: true, saved: +o.saved || 0, lib: Array.isArray(o.schedules) ? o.schedules : []}
+  const sets = o.settings && typeof o.settings === 'object' ? o.settings : null, files = o.files && typeof o.files === 'object' ? o.files : null, nf = files ? Object.keys(files).length : 0;
+  S.imp = items.length || sets || nf ? {step: 'restore', kind: 'restore', file, items, mode: 'replace', keep: true, saved: +o.saved || 0, lib: Array.isArray(o.schedules) ? o.schedules : [], sets, useSets: !!sets, files, nf}
     : {step: 'error', kind: 'restore', file, msg: 'That file is a Stufen backup, but it holds no decks.'};
   renderImp();
 }
 function restoreBody(I){
   const here = it => !!S.decks[it.deck.id], any = I.items.some(here), opt = (v, l) => `<option value="${v}"${I.mode === v ? ' selected' : ''}>${l}</option>`;
-  return `<p class="muted small">${I.saved ? 'Backup saved on ' + new Date(I.saved).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) + '. ' : ''}Tick the decks to bring back. Each comes back with its rows, card types and schedule.</p>
-    <div class="panel">${I.items.map((it, i) => `<label class="inline"><input type="checkbox" data-impi="${i}" id="imp-it-${i}"${it.on ? ' checked' : ''}> <span class="grow" style="color:var(--ink)">${esc(it.deck.name || 'Deck')}</span><span class="mono small">${pl(it.notes.length, 'row')} · ${here(it) ? 'already here' : 'not here yet'}</span></label>`).join('')}</div>
+  return `<p class="muted small">${I.saved ? 'Backup saved on ' + new Date(I.saved).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) + '. ' : ''}${I.items.length ? 'Tick the decks to bring back. Each comes back with its rows, card types and schedule.' : 'This file holds no decks, only what is listed below.'}</p>
+    <div class="panel"${I.items.length ? '' : ' hidden'}>${I.items.map((it, i) => `<label class="inline"><input type="checkbox" data-impi="${i}" id="imp-it-${i}"${it.on ? ' checked' : ''}> <span class="grow" style="color:var(--ink)">${esc(it.deck.name || 'Deck')}</span><span class="mono small">${pl(it.notes.length, 'row')} · ${here(it) ? 'already here' : 'not here yet'}</span></label>`).join('')}</div>
     ${any ? `<label>For a deck that is already here<select id="rs-mode">${opt('replace', 'Replace it: its rows and progress become those of the backup')}${opt('copy', 'Keep both: add the backup as a second deck')}</select></label>` : ''}
-    <label class="inline"><input type="checkbox" id="rs-keep"${I.keep ? ' checked' : ''}> Restore review progress (untick to bring every card back as new)</label>
-    <p class="muted small">Before a deck is replaced, a snapshot of the current state is saved under Settings → Backups. Pictures are not inside a backup file. Restored cards show their pictures only while those are still stored with this page.</p>
+    ${I.items.length ? `<label class="inline"><input type="checkbox" id="rs-keep"${I.keep ? ' checked' : ''}> Restore review progress (untick to bring every card back as new)</label>` : ''}
+    ${I.sets ? `<label class="inline"><input type="checkbox" id="rs-sets"${I.useSets ? ' checked' : ''}> Also bring back folders, groups and the settings (daily limits, backup reminder)</label>` : ''}
+    <p class="muted small">Before a deck is replaced, a snapshot of the current state is saved under Settings → Backups. ${I.nf ? 'The file holds ' + pl(I.nf, 'stored file') + ' (pictures, maps, location files); those missing here are put back.' : 'This file holds no pictures. Restored cards show their pictures only while those are still stored with this page.'}</p>
     <div class="row"><span class="grow"></span><button class="btn ghost" data-act="impClose">Cancel</button><button class="btn pri" data-act="impRun">Restore</button></div>`;
 }
 async function restoreRun(){
-  const I = S.imp, items = I.items.filter(x => x.on); if(!items.length) return;
+  const I = S.imp, items = I.items.filter(x => x.on); if(!items.length && !(I.sets && I.useSets) && !I.nf) return;
   let total = 0; for(const k in S.notes) total += S.notes[k].size;
   for(const it of items){ const ex = S.decks[it.deck.id]; total += Math.min(20000, it.notes.length) - (ex && I.mode === 'replace' ? notesOf(ex).size : 0); }
   if(total > 24000){ I.step = 'error'; I.msg = 'Restoring these decks would go over the limit of 24,000 rows in total. Untick some decks and try again.'; return renderImp(); }
@@ -1888,9 +1890,31 @@ async function restoreRun(){
   geoVer++; ctxC.clear();
   let libN = 0; for(const x of I.lib || []) if(x && typeof x === 'object' && okId(x.id) && !S.lib.some(y => y.id === x.id)){ S.lib.push(normLadder(clone(x))); libN++; }   // saved schedules the backup has and this page lacks
   if(libN) saveLib();
-  I.step = 'done'; I.msg = 'Restored ' + pl(out.length, 'deck') + '.<br>' + out.join('<br>'); I.items = null;
-  S.cur = first; S.tab = 'study'; S.study.on = false; clearTimeout(S.study.timer); S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''};
+  if(I.sets && I.useSets){ applySets(I.sets); out.push('Folders, groups and settings brought back'); }
+  if(I.nf){ I.step = 'run'; I.msg = 'Putting the stored files back…'; renderImp(); const r = await putFiles(I.files); out.push(r.bad ? pl(r.put, 'stored file') + ' put back, ' + r.bad + ' could not be stored' : r.put ? pl(r.put, 'stored file') + ' put back' : 'Stored files: all here already'); covC.clear(); }
+  I.step = 'done'; I.msg = (items.length ? 'Restored ' + pl(items.length, 'deck') + '.' : 'Done.') + '<br>' + out.join('<br>'); I.items = null; I.files = null;
+  if(first) S.cur = first; S.tab = 'study'; S.study.on = false; clearTimeout(S.study.timer); S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''};
   render(); renderImp();
+}
+/* settings from a backup: folders and groups are added to what is here, the single values replace the ones here */
+function applySets(o){
+  const M = S.meta;
+  if(o.folders && typeof o.folders === 'object') for(const [k, v] of Object.entries(o.folders)) if(okId(k) && Array.isArray(v) && String(v[0] || '').trim()) M.folders[k] = [String(v[0]).trim(), String(v[1] || '').trim()];
+  for(const g of Array.isArray(o.groups) ? o.groups : []) if(g && okId(g.id) && Array.isArray(g.decks) && !M.groups.some(x => x.id === g.id)) M.groups.push({id: g.id, name: String(g.name || 'Group'), decks: g.decks.filter(x => typeof x === 'string')});
+  for(const k of SET_KEYS) if(o[k] !== undefined) M[k] = clone(o[k]);
+  planC = null; stateV++; saveMeta();
+}
+/* stored files from a backup go back under the id the decks refer to; one that is here already is left alone */
+async function putFiles(files){
+  let put = 0, bad = 0; if(!assets || !assets.put) return {put, bad: Object.keys(files).length};
+  let have = new Set(); try{ have = new Set(((await assets.list()).assets || []).map(a => a.id)); }catch(e){}
+  for(const [id, f] of Object.entries(files)){
+    if(have.has(id)) continue;
+    try{ const bin = atob(String(f.d || '')), u8 = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      await assets.put(id, new Blob([u8], {type: f.t || 'application/octet-stream'}), {type: f.t || 'application/octet-stream'}); put++; }
+    catch(e){ bad++; }
+  }
+  return {put, bad};
 }
 async function storeImage(file){
   const bmp = await createImageBitmap(file), big = assets ? 2000 : 640, k = Math.min(1, big / Math.max(bmp.width, bmp.height));
@@ -2224,7 +2248,27 @@ function vStats(d){
    backup file: one JSON download. Snapshot: the same content stored with the page as one or more asset files,
    listed in meta/settings as {id, ids: [asset ids], t, why, auto, decks, rows, bytes, sig} */
 const deckJson = d => JSON.stringify({deck: d, notes: sortedNotes(d), log: [...logsOf(d).values()]});
-const wrapBackup = parts => '{"app":"stufen","v":2,"saved":' + Date.now() + ',"schedules":' + JSON.stringify(S.lib) + ',"decks":[' + parts.join(',') + ']}';
+const wrapBackup = (parts, more) => '{"app":"stufen","v":2,"saved":' + Date.now() + ',"schedules":' + JSON.stringify(S.lib) + (more || '') + ',"decks":[' + parts.join(',') + ']}';
+/* what a backup file carries besides the decks: the settings that are not tied to this page's own storage … */
+const SET_KEYS = ['cap', 'newCap', 'major', 'strict', 'backupDays', 'auto'];
+function setsOut(){ const o = {folders: S.meta.folders, groups: S.meta.groups}; for(const k of SET_KEYS) if(S.meta[k] !== undefined) o[k] = S.meta[k]; return o; }
+/* … and every stored file a deck refers to (map pictures, location files, card pictures, picture options) */
+function blobRefs(ds){
+  const refs = new Set(), blob = v => { if(typeof v === 'string' && v.startsWith('/_blob/')) refs.add(v.slice(7)); };
+  for(const d of ds){ for(const f of d.fields){ blob(f.map); if(f.cov && f.cov.id) refs.add(f.cov.id); }
+    for(const n of notesOf(d).values()) for(const k in n.f){ const v = n.f[k]; blob(v); if(v && typeof v === 'object'){ (v.c || []).forEach(blob); (v.w || []).forEach(blob); } } }
+  return refs;
+}
+async function filesOut(ds){
+  const out = {}; let lost = 0;
+  for(const id of blobRefs(ds)){
+    try{ const r = await fetch('/_blob/' + id); if(!r.ok) throw 0; const b = await r.blob();
+      const url = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsDataURL(b); });
+      out[id] = {t: b.type || r.headers.get('content-type') || 'application/octet-stream', d: String(url).slice(String(url).indexOf(',') + 1)}; }
+    catch(e){ lost++; }
+  }
+  return {out, lost};
+}
 const SNAP_PART = 12e6, SNAP_KEEP = 5;
 let snapQ = Promise.resolve();
 const snapshot = (why, auto) => (snapQ = snapQ.then(() => snapDo(why, auto), () => snapDo(why, auto)));
@@ -2285,7 +2329,7 @@ function vBackups(){
   const M = S.meta, days = M.backupDays == null ? 7 : M.backupDays, snaps = M.snaps.slice().sort((a, b) => b.t - a.t), u = S.usage, ds = allDecks();
   return `<h2>Backups</h2>
   <div class="panel"><h3>Backup file on your device</h3>
-    <p class="muted small">One file with every deck, its progress, its answer history and your saved schedules. It is the only copy that lives outside this page, so save one regularly and keep it somewhere safe. Pictures are not inside it.</p>
+    <p class="muted small">One file with every deck, its progress, its answer history and your saved schedules, folders, groups, settings and stored pictures and location files. It is the only copy that lives outside this page, so save one regularly and keep it somewhere safe.</p>
     <div class="rules"><label>Remind me when the last file is older than (days, 0 = never)<input type="number" min="0" max="365" id="bk-days" value="${days}"></label>
       <span class="muted small">${M.lastDl ? 'Last saved ' + fmtWhenFull(M.lastDl) + '.' : 'No backup file saved yet.'}</span><span class="grow"></span>${downloads && ds.length ? `<button class="btn pri" data-act="exportAll">Save backup file now</button>` : ''}</div></div>
   <div class="panel"><h3>Snapshots kept with this page</h3>
@@ -2557,7 +2601,10 @@ const ACT = {
   async delDeck(d){ if(S.busy) return; S.confirm = null; await snapshot('Before deleting ' + d.name); dropLogs(d); for(const n of notesOf(d).values()) save(notePath(d, n), null); save(deckPath(d), null); delete S.decks[d.id]; delete S.notes[d.id]; if(S.meta.folders[d.id]){ delete S.meta.folders[d.id]; saveMeta(); } S.cur = Object.keys(S.decks)[0] || null; S.confirm = null; S.study.on = false; render(); },
   async export(d){ try{ await downloads.save({filename: (d.name.replace(/[^\w\- ]+/g, '').trim() || 'deck') + '.json', data: JSON.stringify({app: 'stufen', v: 2, saved: Date.now(), decks: [{deck: d, notes: sortedNotes(d), log: [...logsOf(d).values()]}]})}); }catch(e){} },
   async exportAll(){ const ds = Object.values(S.decks).sort((a, b) => (a.created || 0) - (b.created || 0)), t = new Date(), day = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
-    try{ await downloads.save({filename: 'stufen-backup-' + day + '.json', data: new Blob([wrapBackup(ds.map(deckJson))], {type: 'application/json'})}); S.meta.lastDl = Date.now(); delete S.meta.snooze; saveMeta(); if(!S.study.on) render(); }catch(e){} },
+    if(S.busy) return; S.busy = 'Putting the backup together…'; setStatus();
+    try{ const fl = await filesOut(ds);
+      await downloads.save({filename: 'stufen-backup-' + day + '.json', data: new Blob([wrapBackup(ds.map(deckJson), ',"settings":' + JSON.stringify(setsOut()) + ',"files":' + JSON.stringify(fl.out))], {type: 'application/json'})}); S.meta.lastDl = Date.now(); delete S.meta.snooze; saveMeta(); }catch(e){}
+    S.busy = ''; setStatus(); if(!S.study.on) render(); },
   start(d){ const st = S.study; homeView(d); st.scope = null; st.home = false; st.on = true; st.early = false; st.extra = 0; st.over = 0; st.lastCard = null; st.undo = null; st.last = null; pick(d); render(); },
   stop(){ const st = S.study; st.on = false; clearTimeout(st.timer); if(st.scope || st.home) S.view = 'home'; st.scope = null; st.home = false; render(); },
   home(){ if(!Object.keys(S.decks).length) return; S.view = 'home'; S.homeMsg = ''; S.confirm = null; S.study.on = false; S.study.scope = null; clearTimeout(S.study.timer); render(); },
@@ -2755,6 +2802,7 @@ function onChange(e){
   if(t.dataset.impi){ S.imp.items[+t.dataset.impi].on = t.checked; return; }
   if(t.id === 'rs-mode'){ S.imp.mode = t.value; return; }
   if(t.id === 'rs-keep'){ S.imp.keep = t.checked; return; }
+  if(t.id === 'rs-sets'){ S.imp.useSets = t.checked; return; }
   if(t.id === 'imp-keep' || t.id === 'imp-images' || t.id === 'imp-header'){ S.imp[t.id.slice(4)] = t.checked; return; }
   if(t.id === 'filepick'){ const f = t.files[0]; t.value = ''; if(!f) return;
     readSheets(f).then(sh => { const ta = $('#imp-text'); if(!ta || !sh.length) return; ta.value = sh[0].rows.map(r => r.map(c => /[\t\n"]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c).join('\t')).join('\n');

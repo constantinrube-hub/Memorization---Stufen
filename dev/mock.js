@@ -21,6 +21,7 @@
     onSnapshot(fn){ const st = read('__db'), l = {path: p, fn, last: st.has(p) ? JSON.stringify(st.get(p)) : null}; listeners.push(l); setTimeout(() => fn(mkdoc(p, read('__db'))), 0); return () => { const i = listeners.indexOf(l); if(i >= 0) listeners.splice(i, 1); }; }})};
   let an = 0;
   const assets = {async upload(blob, o){ const b = read('__blobs'), id = 'a' + String(++an + b.size * 1000 + Date.now() % 100000).padStart(31, '0'); b.set(id, await blob.text()); write('__blobs', b); return {id, url: '/_blob/' + id, sizeBytes: blob.size, contentType: (o && o.type) || blob.type}; },
+    async put(id, blob, o){ const b = read('__blobs'); if(!b.has(id)){ b.set(id, await blob.text()); write('__blobs', b); } return {id, url: '/_blob/' + id, sizeBytes: blob.size, contentType: (o && o.type) || blob.type}; },
     async list(){ let n = 0; const b = read('__blobs'), l = []; for(const [id, t] of b){ n += t.length; l.push({id, url: '/_blob/' + id, sizeBytes: t.length, contentType: 'application/json'}); } return {assets: l, usage: {files: b.size, bytes: n, maxBytes: 500 * 1048576, maxFiles: 1000}}; },
     async delete(id){ const b = read('__blobs'), h = b.delete(id); write('__blobs', b); return {deleted: h}; }};
   window.__dl = [];

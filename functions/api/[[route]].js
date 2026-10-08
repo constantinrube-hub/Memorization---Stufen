@@ -106,16 +106,21 @@ export async function onRequest({request, env}){
     return json({assets: rows.map(r => ({id: r.id, url: '/_blob/' + r.id, sizeBytes: r.size, contentType: r.type})),
       usage: {files: rows.length, bytes: rows.reduce((a, r) => a + r.size, 0), maxBytes: MAX_STORE, maxFiles: 5000}});
   }
-  if(route === 'blob' && m === 'POST'){
+  /* POST stores a new file under a fresh id; PUT puts a file from a backup back under its old id (and leaves an existing one alone) */
+  const putId = m === 'PUT' && route.startsWith('blob/') ? route.slice(5) : '';
+  if(putId && !/^[0-9a-f]{32}$/.test(putId)) return fail(400, 'invalid_argument', 'Not a file id.');
+  if((route === 'blob' && m === 'POST') || putId){
+    if(putId){ const ex = await DB.prepare('SELECT id, type, size FROM blobs WHERE id = ?').bind(putId).first(); if(ex) return json({id: ex.id, url: '/_blob/' + ex.id, sizeBytes: ex.size, contentType: ex.type}); }
     const buf = await body(request, MAX_BLOB);
     if(!buf) return fail(413, 'too_large', 'One stored file holds at most 20 MB.');
     const used = await DB.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM blobs').first();
     if((used ? used.n : 0) + buf.byteLength > MAX_STORE) return fail(507, 'quota_or_state', 'The file storage is full.');
-    const id = crypto.randomUUID().replace(/-/g, ''), type = (request.headers.get('content-type') || 'application/octet-stream').slice(0, 100), now = Date.now();
+    const id = putId || crypto.randomUUID().replace(/-/g, ''), type = (request.headers.get('content-type') || 'application/octet-stream').slice(0, 100), now = Date.now();
     const bytes = new Uint8Array(buf), parts = [];
     for(let o = 0, n = 0; o < bytes.length || n === 0; o += PART, n++) parts.push(DB.prepare('INSERT INTO blob_parts (id, n, data) VALUES (?, ?, ?)').bind(id, n, bytes.slice(o, o + PART)));
     /* the file is listed only once every piece is stored */
     try{
+      if(putId) await DB.prepare('DELETE FROM blob_parts WHERE id = ?').bind(id).run();   // pieces left by an upload that broke off
       for(let i = 0; i < parts.length; i += 4) await DB.batch(parts.slice(i, i + 4));
       await DB.prepare('INSERT INTO blobs (id, type, size, t) VALUES (?, ?, ?, ?)').bind(id, type, bytes.length, now).run();
     }catch(e){ await DB.prepare('DELETE FROM blob_parts WHERE id = ?').bind(id).run().catch(() => {}); throw e; }

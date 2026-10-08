@@ -110,6 +110,11 @@
       if(blob.size > 20 * 1048576) throw E('too_large', 'One stored file holds at most 20 MB.');
       return (await call('POST', '/api/blob', blob, {'content-type': (o && o.type) || blob.type || 'application/octet-stream'})).json();
     },
+    /* a file from a backup goes back under the id the decks refer to */
+    async put(id, blob, o){
+      if(blob.size > 20 * 1048576) throw E('too_large', 'One stored file holds at most 20 MB.');
+      return (await call('PUT', '/api/blob/' + encodeURIComponent(id), blob, {'content-type': (o && o.type) || blob.type || 'application/octet-stream'})).json();
+    },
     async list(){ return (await call('GET', '/api/blob')).json(); },
     async delete(id){ return (await call('DELETE', '/api/blob/' + encodeURIComponent(id))).json(); }
   };

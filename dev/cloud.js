@@ -50,6 +50,9 @@ fs.writeFileSync('/tmp/stufen-grid6.geojson',JSON.stringify({type:'FeatureCollec
    const l=await a.list(),del=await a.delete(up.id),after=await fetch('/_blob/'+up.id,{cache:'no-store'});let big2=null;try{await a.upload(new Blob([new Uint8Array(21*1048576)]),{});}catch(e){big2=e.code;}
    return [up.id.length,same,l.assets.some(x=>x.id===up.id&&x.sizeBytes===big.length),l.usage.bytes>=big.length&&l.usage.maxBytes>0,del.deleted,after.status,big2];});
  ok(bl[0]===32&&bl[1],'a 5 MB file is stored in pieces and read back unchanged');ok(bl[2]&&bl[3],'it is listed with its size; usage is reported');ok(bl[4]&&bl[5]===404,'deleting removes it');ok(bl[6]==='too_large','a file over 20 MB is refused with the code the page expects');
+ // a file from a backup goes back under its old id; a second put leaves it alone
+ const pt=await A.evaluate(async()=>{const a=await window.claude.use('assets'),id='abcdefabcdefabcdefabcdefabcdef12';const r1=await a.put(id,new Blob(['first']),{type:'text/plain'}),r2=await a.put(id,new Blob(['second, longer']),{type:'text/plain'});const t=await (await fetch('/_blob/'+id,{cache:'no-store'})).text();let bad=null;try{await a.put('nope',new Blob(['x']),{});}catch(e){bad=e.code;}await a.delete(id);return [r1.id===id,r2.sizeBytes,t,bad];});
+ ok(pt[0]&&pt[1]===5&&pt[2]==='first'&&pt[3]==='invalid_argument','a backup’s file is stored under its own id and never overwritten');
  // a restore-sized burst: 600 rows written at once arrive complete and in few requests
  const burst=await A.evaluate(async()=>{const db=await window.claude.use('db');let calls=0;const of=window.fetch;window.fetch=(...a)=>{if(String(a[0]).startsWith('/api/batch'))calls++;return of(...a);};
    const big='x'.repeat(20000);await Promise.all(Array.from({length:600},(_,i)=>db.doc('test/b/rows/r'+String(i).padStart(4,'0')).set({id:'r'+i,i,big})));
