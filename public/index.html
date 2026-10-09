@@ -878,8 +878,8 @@ function ctxOf(f){   // null until the world file has arrived; the map is redraw
 /* ---------- the real Google map under a map with the Google-like look ----------
    The page stays in charge of zoom, pan and clicks; the Google map is a picture underneath that is moved to match.
    It is created once per page load and carried from card to card and view to view: one billable map load per opening.
-   Google's map only comes at whole zoom levels, so in between it is scaled; when a zoom gesture ends the view settles on a whole level. */
-const G = {key: '', state: 0, map: null, div: null, off: false, type: 'roadmap', styles: '', snapT: 0, why: ''};   // state: 0 not asked for, 1 loading, 2 ready, -1 failed
+   Google's map only comes at whole zoom levels, so in between it is scaled; a zoom ends on a whole level by gliding on to it. */
+const G = {key: '', state: 0, map: null, div: null, off: false, type: 'roadmap', styles: '', snapT: 0, why: '', anim: null, gz: null, lib: null};   // state: 0 not asked for, 1 loading, 2 ready, -1 failed
 try{ G.off = localStorage.getItem('stufen-gmap') === '0'; G.type = localStorage.getItem('stufen-gtype') === 'hybrid' ? 'hybrid' : 'roadmap'; }catch(e){}
 const gWanted = () => !!G.key && G.state >= 0 && !G.off;
 /* which map box holds the Google map: the region editor while it is open, otherwise the study map */
@@ -892,18 +892,24 @@ function gFail(why){
   G.state = -1; G.why = why; if(G.div) G.div.remove();
   if(S.ed) renderEd(); render();   // drawn again in the Google-like look
 }
+/* Google's script, fetched once. Loading it is not a map load: only creating the map is, and the Street View check needs no map. */
+function gLib(){
+  if(!G.lib) G.lib = new Promise((res, rej) => {
+    window.gm_authFailure = () => gFail('Google refused the key.'); window.__gmReady = res;
+    const sc = document.createElement('script'); sc.async = true; sc.onerror = () => { G.lib = null; rej(new Error('unreachable')); };
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(G.key) + '&v=weekly&loading=async&callback=__gmReady';
+    document.head.appendChild(sc); });
+  return G.lib;
+}
 function gLoad(){
   if(G.state !== 0 || !gWanted()) return; G.state = 1;
-  window.gm_authFailure = () => gFail('Google refused the key.');
-  window.__gmReady = () => {
+  gLib().then(() => {
+    if(G.state !== 1) return;
     try{ G.div = document.createElement('div'); G.div.className = 'gbg';
       G.map = new google.maps.Map(G.div, {center: {lat: 0, lng: 0}, zoom: 3, mapTypeId: G.type, disableDefaultUI: true, gestureHandling: 'none', keyboardShortcuts: false, clickableIcons: false, disableDoubleClickZoom: true, isFractionalZoomEnabled: false, backgroundColor: '#e8eaed', styles: G_QUIET});
       G.state = 2; gSync(); if(S.view === 'settings') render(); }
     catch(e){ gFail('The Google map could not be started.'); }
-  };
-  const sc = document.createElement('script'); sc.async = true; sc.onerror = () => gFail('Google Maps could not be reached.');
-  sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(G.key) + '&v=weekly&loading=async&callback=__gmReady';
-  document.head.appendChild(sc);
+  }, () => gFail('Google Maps could not be reached.'));
 }
 /* the whole Google zoom level nearest to a view, and how much the picture is scaled to match the view exactly */
 function gLevel(f, v, W){ const zf = Math.log2(W * v.k * 2 * Math.PI * f.geo.s / 256), z = Math.max(1, Math.min(21, Math.round(zf))); return {zf, z, sc: 2 ** (zf - z)}; }
@@ -925,14 +931,38 @@ function gSync(){
   if(G.styles !== st){ G.styles = st; G.map.setOptions({styles: st === 'bare' ? G_BARE : G_QUIET}); }
   if(G.map.getMapTypeId() !== G.type) G.map.setMapTypeId(G.type);
 }
-/* after a zoom gesture: settle on the nearest whole Google level, so the map is sharp and its names have their normal size */
-function gSnap(rm, now){
-  clearTimeout(G.snapT); if(!rm || !rm.classList.contains('gg')) return;
-  const go = () => { if(drag || !rm.isConnected || G.state !== 2) return; const d = S.decks[S.cur], f = d && d.fields.find(x => x.id === rm.dataset.fid), v = curView(rm.dataset.z), W = rm.clientWidth; if(!f || !W || v.k <= 1.001) return;
-    const L = gLevel(f, v, W), k = v.k / L.sc; if(k < 1 || k > (v.zm || ZMAX) || Math.abs(L.sc - 1) < 0.004) return;
-    zoomAt(v, k / v.k, 0.5, 0.5); applyView(rm, v); };
-  if(now) go(); else G.snapT = setTimeout(go, 220);
+/* A zoom on the Google map ends on a whole Google level, so the map is sharp and its names have their normal size.
+   It gets there by gliding on in the direction of the zoom, around the pointer: never by jumping, and never back to where the zoom started. */
+const gCtx = rm => { const d = S.decks[S.cur], f = d && d.fields.find(x => x.id === rm.dataset.fid), v = curView(rm.dataset.z), W = rm.clientWidth; return f && f.geo && W ? {f, v, W, zf: gLevel(f, v, W).zf} : null; };
+const gLive = rm => !!rm && rm.classList.contains('gg') && G.state === 2;
+function gStop(){ if(G.anim){ cancelAnimationFrame(G.anim.raf); G.anim = null; } }
+function gGlide(rm, zt, fx, fy){
+  gStop(); const c = gCtx(rm); if(!c) return;
+  const v = c.v, k1 = Math.min(v.zm || ZMAX, Math.max(1, v.k * 2 ** (zt - c.zf))), k0 = v.k; if(Math.abs(k1 / k0 - 1) < 0.003) return;
+  const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, a = G.anim = {rm, zt, dir: Math.sign(k1 - k0), t0: performance.now(), raf: 0};
+  const step = now => { if(G.anim !== a) return; if(!rm.isConnected || drag){ G.anim = null; return; }
+    const t = still ? 1 : Math.min(1, (now - a.t0) / 170), e = 1 - (1 - t) ** 3, w = curView(rm.dataset.z);
+    zoomAt(w, k0 * (k1 / k0) ** e / w.k, fx, fy); applyView(rm, w);
+    if(t < 1) a.raf = requestAnimationFrame(step); else G.anim = null; };
+  a.raf = requestAnimationFrame(step);
 }
+/* one step of the mouse wheel, or the + and − buttons: one Google level, like on Google Maps itself; steps in quick succession add up */
+function gStep(rm, dir, fx, fy){
+  const c = gCtx(rm); if(!c) return; clearTimeout(G.snapT); G.gz = null;
+  const a = G.anim, on = a && a.rm === rm && a.dir === dir, base = on ? a.zt : dir > 0 ? Math.floor(c.zf + 0.03) : Math.ceil(c.zf - 0.03);
+  gGlide(rm, Math.max(c.zf - 3, Math.min(c.zf + 3, base + dir)), fx, fy);
+}
+/* a flowing zoom (trackpad, two fingers) has stopped: glide to the nearest whole level, or to the next one on if the nearest is where the zoom began */
+function gSnap(rm, now, fx = 0.5, fy = 0.5){
+  clearTimeout(G.snapT); if(!rm || !rm.classList.contains('gg')) return;
+  const go = () => { const g = G.gz; G.gz = null; if(drag || !rm.isConnected || G.state !== 2) return; const c = gCtx(rm); if(!c) return;
+    const z0 = g && g.rm === rm ? g.z0 : c.zf, dir = Math.abs(c.zf - z0) < 0.1 ? 0 : Math.sign(c.zf - z0); let zt = Math.round(c.zf);
+    if(dir > 0 && zt < z0 + 0.03) zt = Math.floor(z0 + 0.03) + 1; if(dir < 0 && zt > z0 - 0.03) zt = Math.ceil(z0 - 0.03) - 1;
+    gGlide(rm, zt, fx, fy); };
+  if(now) go(); else G.snapT = setTimeout(go, 160);
+}
+/* remember the level a flowing zoom starts from */
+function gBegin(rm){ if(!gLive(rm)) return; gStop(); if(!G.gz || G.gz.rm !== rm){ const c = gCtx(rm); G.gz = c ? {rm, z0: c.zf} : null; } }
 window.addEventListener('resize', () => { if(G.state === 2) gSync(); });
 let maskN = 0;
 function regionHtml(f, value, o = {}){
@@ -1019,6 +1049,41 @@ function covIn(f, n){   // …plus any location that carries this row's tag (set
   for(let i = 0; i < c.xs.length; i++){ const x = c.xs[i], y = c.ys[i]; if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue; if(hitRegion(polys, x, y, ar).inside && !l.includes(i)) l.push(i); }
   c.rows.set(n.id, l); return l;
 }
+/* ---------- Street View check: what MapCheckr does, done by the page ----------
+   For every row the page asks Google for the official panorama nearest the middle of the row's shape. What it finds is stored exactly like a
+   loaded map-making.app file (one location per row, tagged with the row), so the dots, the "rows without a location" list and the Street View
+   link all work from it. Google does not bill these lookups and they are not map loads: no map and no panorama viewer is created here. */
+async function svCheck(d, f){
+  const M = S.ms; if(!M || M.chk || !G.key || G.state < 0 || !assets || !f.geo) return;
+  const rad = +M.rad || 1000, inv = geoInv(f), todo = [];
+  for(const n of sortedNotes(d)){ const c = centroidOf(regOf(n, f.id)); if(!c) continue; let [lon, lat] = inv(c[0], c[1]); if(lon > 180) lon -= 360; todo.push({id: n.id, lat, lng: lon}); }
+  if(!todo.length){ M.msg = 'This map has no rows with a shape yet.'; return renderMs(); }
+  const C = M.chk = {n: todo.length, done: 0, hit: 0, stop: false}; M.msg = ''; S.confirm = null; renderMs();
+  const end = why => { M.chk = null; if(S.ms === M){ M.msg = why; renderMs(); } };
+  let sv, opt; try{ await gLib(); sv = new google.maps.StreetViewService(); const src = google.maps.StreetViewSource || {}, pref = google.maps.StreetViewPreference || {}; opt = {radius: rad, preference: pref.NEAREST || 'nearest', sources: [src.GOOGLE || 'google']}; }
+  catch(e){ return end('Google Maps could not be reached. Nothing was changed.'); }
+  const num = v => typeof v === 'function' ? v() : v;
+  /* one row: a panorama, or null when Google has none in reach. Official panoramas have ids of 22 characters; photos uploaded by users have longer ones and are not what GeoGuessr shows. */
+  const one = async q => { for(let t = 0; ; t++){ if(C.stop || G.state < 0) return null;
+    try{ const r = await sv.getPanorama({location: {lat: q.lat, lng: q.lng}, ...opt}), data = r && r.data, L = data && data.location; if(!L || !L.latLng || typeof L.pano !== 'string' || L.pano.length !== 22) return null;
+      const road = (data.links || [])[0]; return [+num(L.latLng.lat).toFixed(5), +num(L.latLng.lng).toFixed(5), Math.round((road && road.heading) || 0), 0, L.pano, 'row:' + q.id]; }
+    catch(e){ if(e && (e.code === 'ZERO_RESULTS' || /ZERO_RESULTS/.test(e.message || ''))) return null; if(t >= 3) throw e; await sleep(700 * 2 ** t); } } };   // anything else is Google being busy: wait and ask again, then give up
+  const out = new Array(todo.length); let i = 0, bad = false;
+  const show = () => { const el = S.ms === M && $('#ms-chk'); if(el) el.textContent = svLine(C); };
+  const work = async () => { while(i < todo.length && !C.stop && !bad && G.state >= 0){ const j = i++; try{ out[j] = await one(todo[j]); }catch(e){ bad = true; return; } C.done++; if(out[j]) C.hit++; show(); await sleep(150); } };   // two at a time with a short pause: a few lookups a second
+  await Promise.all([work(), work()]);
+  if(G.state < 0) return end(G.why + ' The check stopped; nothing was changed.');
+  if(bad) return end('Google stopped answering after ' + C.done.toLocaleString() + ' of ' + C.n.toLocaleString() + ' rows. Nothing was changed; try again in a few minutes.');
+  if(C.stop) return end('Check stopped after ' + C.done.toLocaleString() + ' of ' + C.n.toLocaleString() + ' rows. Nothing was changed.');
+  const pts = out.filter(Boolean); if(!pts.length) return end('Google found no Street View near any of the ' + C.n.toLocaleString() + ' rows, which is more likely a fault than the truth. Nothing was changed.');
+  try{ const r = await assets.upload(new Blob([JSON.stringify({v: 1, p: pts})], {type: 'application/json'}), {type: 'application/json'});
+    if(f.cov && f.cov.id){ try{ await assets.delete(f.cov.id); }catch(e){} covC.delete(f.cov.id); }
+    f.cov = {id: r.id, n: pts.length, name: 'Street View check, ' + new Date().toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'}), show: f.cov ? f.cov.show || 1 : 1}; covC.set(r.id, {p: pts}); saveDeck(d);
+    const none = C.n - pts.length, far = rad >= 1000 ? rad / 1000 + ' km' : rad + ' m';
+    end(pts.length.toLocaleString() + ' of ' + C.n.toLocaleString() + ' rows have Street View within ' + far + ' of their middle.' + (none ? ' The ' + (none === 1 ? 'one' : none.toLocaleString()) + ' without ' + (none === 1 ? 'is' : 'are') + ' listed below.' : '')); render(); }
+  catch(e){ end(e && e.code === 'quota_or_state' ? 'The page’s file storage is full. Nothing was changed.' : 'The result could not be stored. Nothing was changed.'); }
+}
+const svLine = C => 'Asking Google: ' + C.done.toLocaleString() + ' of ' + C.n.toLocaleString() + ' rows checked, ' + (C.done - C.hit).toLocaleString() + ' without Street View so far…';
 /* rows of a map that have a shape but no stored location */
 function covMissing(d, f){ if(!covOf(f)) return null; return sortedNotes(d).filter(n => n.f[f.id] && !covIn(f, n).length); }
 /* one coordinate per row (the middle of its shape) as a map-making.app file; each carries the row's name and an id tag so it can be matched again */
@@ -1413,6 +1478,8 @@ function renderMs(){
     <h3>Coverage from map-making.app</h3>
     <p class="muted small">Export a map from map-making.app as JSON and load it here. Its locations on this map are stored with the page and can be shown as dots; with the Google Maps links switched on for a card type, “Street View” then opens one of your own locations inside the answer’s area instead of its middle. The file is not part of backups.</p>
     <div class="row">${cov ? `<span class="small"><b>${(cov.n || 0).toLocaleString()}</b> locations from “${esc(cov.name || 'file')}”${cc && cc.loading ? ' (loading…)' : ''}</span>` : `<span class="small muted">No locations loaded.</span>`}<span class="grow"></span><button class="btn" data-act="msCov"${assets ? '' : ' disabled'}>${cov ? 'Replace file…' : 'Load file…'}</button>${cov ? confirmBtn('msCovDel', f.id, 'Remove') : ''}</div>
+    ${G.key && G.state >= 0 ? (M.chk ? `<div class="row"><span class="small grow" id="ms-chk">${svLine(M.chk)}</span><button class="btn" data-act="msCheckStop">Stop</button></div>`
+      : `<div class="row"><span class="small grow muted">Or let the page ask Google itself, as MapCheckr does: for every row, the nearest official Street View within <select id="ms-rad" aria-label="Search distance" style="width:auto;display:inline-block;padding:1px 4px">${[[250, '250 m'], [1000, '1 km'], [3000, '3 km'], [10000, '10 km']].map(([v, l]) => opt(v, M.rad || 1000, l)).join('')}</select> of the middle of its shape. Free, and not a map load.${cov ? ' The result replaces the loaded file.' : ''}</span>${cov ? confirmBtn('msCheck', f.id, 'Check Street View') : `<button class="btn" data-act="msCheck" data-v="${f.id}"${assets ? '' : ' disabled'}>Check Street View</button>`}</div>`) : ''}
     <div class="row"><span class="small grow muted">One coordinate per row, at the middle of its shape, as a file map-making.app can import. Each carries the row’s name as a tag.</span><button class="btn" data-act="msExport"${downloads ? '' : ' disabled'}>Save places file</button></div>
     ${cov && cc && !cc.loading ? (() => { const miss = covMissing(d, f) || []; return `<div class="row"><span class="small grow" id="ms-miss">${miss.length ? pl(miss.length, 'row') + ' of this map ' + (miss.length === 1 ? 'has' : 'have') + ' no location in the loaded file' + (miss.length <= 6 ? ': ' + miss.map(n => esc(rowLabel(d, n))).join(', ') : '') + '.' : 'Every row of this map has at least one location.'}</span>${miss.length ? confirmBtn('msPrune', f.id, 'Delete those rows') : ''}</div>`; })() : ''}
     ${cov ? `<label>Dots on the map<select id="ms-cov">${opt(0, cov.show || 0, 'Off')}${opt(1, cov.show || 0, 'After the answer')}${opt(2, cov.show || 0, 'Always, also while answering')}</select></label>` : ''}
@@ -2640,7 +2707,9 @@ const ACT = {
     saveDeck(d); render(); },
   covTog(d, v, b){ const rm = b.closest('.rmap'), f = d && d.fields.find(f => f.id === rm.dataset.fid); if(!f || !f.cov) return; f.cov.show = ((f.cov.show || 0) + 1) % 3; saveDeck(d); if(S.ed) renderEd(); else render(); },
   msOpen(d, v){ S.ms = {fid: v, msg: ''}; S.confirm = null; renderMs(); },
-  msClose(){ S.ms = null; S.confirm = null; renderMs(); render(); },
+  msCheck(d, v){ const f = d.fields.find(f => f.id === v); S.confirm = null; if(f) svCheck(d, f); },
+  msCheckStop(){ if(S.ms && S.ms.chk) S.ms.chk.stop = true; },
+  msClose(){ if(S.ms && S.ms.chk) S.ms.chk.stop = true; S.ms = null; S.confirm = null; renderMs(); render(); },
   msCov(){ $('#covpick').click(); },
   async msCovDel(d, v){ const f = d.fields.find(f => f.id === v); S.confirm = null; if(f && f.cov){ try{ if(assets) await assets.delete(f.cov.id); }catch(e){} covC.delete(f.cov.id); delete f.cov; saveDeck(d); if(S.ms) S.ms.msg = 'Locations removed.'; } renderMs(); },
   async msExport(d){ const f = S.ms && d.fields.find(f => f.id === S.ms.fid); if(!f || !downloads) return; const o = placesJson(d, f);
@@ -2753,7 +2822,7 @@ const ACT = {
   mapLook(d, v){ const f = d.fields.find(f => f.id === v); if(!f) return; if(isGm(f)) delete f.style; else f.style = 'gmap'; geoVer++; saveDeck(d); render(); },
   sideTog(){ S.sideOpen = !S.sideOpen; renderSide(); },
   labels(d, v, b){ labelsOn = !labelsOn; try{ localStorage.setItem('stufen-labels', labelsOn ? '1' : '0'); }catch(e){} $$('.rmap.gm[data-w]:not([data-q])').forEach(rm => rm.classList.toggle('nolab', !labelsOn)); b.classList.toggle('on', labelsOn); gSync(); },
-  zoom(d, v, b){ const rm = b.closest('.rmap'), w = curView(rm.dataset.z); if(v === 'fit'){ const hm = rm.dataset.home && rm.dataset.home.split(',').map(Number), at = hm && Math.abs(w.k - hm[0]) < 0.01 && Math.abs(w.x - hm[1]) < 0.005 && Math.abs(w.y - hm[2]) < 0.005; Object.assign(w, hm && !at ? {k: hm[0], x: hm[1], y: hm[2]} : {k: 1, x: 0, y: 0}); } else zoomAt(w, rm.classList.contains('gg') ? (v === 'in' ? 2 : 0.5) : (v === 'in' ? 1.6 : 1 / 1.6), 0.5, 0.5); applyView(rm, w); if(v !== 'fit') gSnap(rm, true); },
+  zoom(d, v, b){ const rm = b.closest('.rmap'), w = curView(rm.dataset.z); if(v === 'fit'){ const hm = rm.dataset.home && rm.dataset.home.split(',').map(Number), at = hm && Math.abs(w.k - hm[0]) < 0.01 && Math.abs(w.x - hm[1]) < 0.005 && Math.abs(w.y - hm[2]) < 0.005; Object.assign(w, hm && !at ? {k: hm[0], x: hm[1], y: hm[2]} : {k: 1, x: 0, y: 0}); } else if(gLive(rm)) return gStep(rm, v === 'in' ? 1 : -1, 0.5, 0.5); else zoomAt(w, v === 'in' ? 1.6 : 1 / 1.6, 0.5, 0.5); gStop(); clearTimeout(G.snapT); G.gz = null; applyView(rm, w); },
   gType(d, v, b){ G.type = G.type === 'hybrid' ? 'roadmap' : 'hybrid'; try{ localStorage.setItem('stufen-gtype', G.type); }catch(e){} $$('.rmap.gg').forEach(rm => { rm.classList.toggle('sat', G.type === 'hybrid'); const x = $('[data-act="gType"]', rm); if(x) x.classList.toggle('on', G.type === 'hybrid'); }); gSync(); },
   gOff(){ G.off = !G.off; try{ localStorage.setItem('stufen-gmap', G.off ? '0' : '1'); }catch(e){} if(G.off && G.div) G.div.remove(); ctxC.clear(); render(); },
   signOut(){ if(window.claude && window.claude.signOut) window.claude.signOut(); },
@@ -2795,12 +2864,13 @@ document.addEventListener('pointerdown', e => {
   const rm = e.target.closest && e.target.closest('.rmap[data-z]');
   if(!rm || e.target.closest('.zc') || (e.pointerType === 'mouse' && e.button !== 0)) return;
   if(drag && drag.rm !== rm){ drag = null; ptrs.clear(); }
+  gStop();
   ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
   try{ rm.setPointerCapture(e.pointerId); }catch(err){}
   const v = curView(rm.dataset.z);
   if(ptrs.size === 1) drag = {rm, x0: e.clientX, y0: e.clientY, v0: {k: v.k, x: v.x, y: v.y}, moved: false, pinch: null};
   else if(ptrs.size === 2 && drag){ const [a, b] = [...ptrs.values()], r = mapRect(rm), fx = ((a.x + b.x) / 2 - r.left) / r.width, fy = ((a.y + b.y) / 2 - r.top) / r.height;
-    drag.moved = true; drag.zoomed = true; drag.pinch = {d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: v.k, mx: v.x + fx / v.k, my: v.y + fy * (v.r || 1) / v.k}; }
+    gBegin(rm); drag.moved = true; drag.zoomed = true; drag.pinch = {fx, fy, d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, k0: v.k, mx: v.x + fx / v.k, my: v.y + fy * (v.r || 1) / v.k}; }
 });
 document.addEventListener('pointermove', e => {
   if(!drag || !ptrs.has(e.pointerId)) return;
@@ -2808,7 +2878,7 @@ document.addEventListener('pointermove', e => {
   const rm = drag.rm; if(!rm.isConnected){ drag = null; ptrs.clear(); return; }
   const r = mapRect(rm), v = curView(rm.dataset.z);
   if(drag.pinch && ptrs.size >= 2){ const [a, b] = [...ptrs.values()], p = drag.pinch, fx = ((a.x + b.x) / 2 - r.left) / r.width, fy = ((a.y + b.y) / 2 - r.top) / r.height;
-    v.k = Math.min(v.zm || ZMAX, Math.max(1, p.k0 * Math.hypot(a.x - b.x, a.y - b.y) / p.d0)); v.x = p.mx - fx / v.k; v.y = p.my - fy * (v.r || 1) / v.k; applyView(rm, v); return; }
+    v.k = Math.min(v.zm || ZMAX, Math.max(1, p.k0 * Math.hypot(a.x - b.x, a.y - b.y) / p.d0)); v.x = p.mx - fx / v.k; v.y = p.my - fy * (v.r || 1) / v.k; p.fx = fx; p.fy = fy; applyView(rm, v); return; }
   const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
   if(!drag.moved && Math.hypot(dx, dy) < 6) return;
   drag.moved = true; rm.classList.add('pan');
@@ -2818,9 +2888,9 @@ function pointerEnd(e, cancel){
   if(!ptrs.has(e.pointerId)) return;
   ptrs.delete(e.pointerId);
   const g = drag; if(!g) return;
-  if(ptrs.size){ const p = [...ptrs.values()][0], v = curView(g.rm.dataset.z); g.pinch = null; g.x0 = p.x; g.y0 = p.y; g.v0 = {k: v.k, x: v.x, y: v.y}; return; }
+  if(ptrs.size){ const p = [...ptrs.values()][0], v = curView(g.rm.dataset.z); if(g.pinch) g.at = [g.pinch.fx, g.pinch.fy]; g.pinch = null; g.x0 = p.x; g.y0 = p.y; g.v0 = {k: v.k, x: v.x, y: v.y}; return; }
   drag = null; g.rm.classList.remove('pan');
-  if(g.zoomed) gSnap(g.rm);
+  if(g.zoomed) gSnap(g.rm, true, ...(g.at || [0.5, 0.5]));
   if(!cancel && !g.moved && g.rm.isConnected) mapClick(g.rm, e.clientX, e.clientY);
 }
 document.addEventListener('pointerup', e => pointerEnd(e, false));
@@ -2830,9 +2900,12 @@ document.addEventListener('wheel', e => {
   const v = curView(rm.dataset.z);
   if(e.deltaY > 0 && v.k <= 1) return;   // fully zoomed out: let the page scroll
   e.preventDefault();
-  const r = mapRect(rm), step = e.deltaMode ? e.deltaY * 30 : e.deltaY;
-  zoomAt(v, Math.exp(-Math.max(-120, Math.min(120, step)) * (e.ctrlKey ? 0.012 : 0.0028)), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
-  applyView(rm, v); gSnap(rm);
+  const r = mapRect(rm), step = e.deltaMode ? e.deltaY * 30 : e.deltaY, fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+  /* a mouse wheel turns in notches (whole lines, or multiples of 120), a trackpad flows: on the Google map a notch is one level */
+  if(gLive(rm) && !e.ctrlKey && e.deltaY && (e.deltaMode === 1 || (e.wheelDeltaY && e.wheelDeltaY % 120 === 0 && Math.abs(e.deltaY) >= 50))) return gStep(rm, e.deltaY < 0 ? 1 : -1, fx, fy);
+  gBegin(rm);
+  zoomAt(v, Math.exp(-Math.max(-120, Math.min(120, step)) * (e.ctrlKey ? 0.012 : 0.0028)), fx, fy);
+  applyView(rm, v); gSnap(rm, false, fx, fy);
 }, {passive: false});
 
 /* one floating note for anything carrying data-tip (chart columns, stage rows, map shapes) */
@@ -2872,6 +2945,7 @@ function onChange(e){
   const t = e.target, d = S.decks[S.cur];
   if(t.id === 'covpick'){ const file = t.files[0]; t.value = ''; const f = d && S.ms && d.fields.find(f => f.id === S.ms.fid); if(file && f) covImport(d, f, file); return; }
   if(t.id && t.id.startsWith('ms-') && S.ms && d){ const f = d.fields.find(f => f.id === S.ms.fid); if(!f) return; S.ms.msg = '';
+    if(t.id === 'ms-rad'){ S.ms.rad = +t.value || 1000; return; }
     if(t.id === 'ms-look'){ if(t.value === 'gmap') f.style = 'gmap'; else delete f.style; geoVer++; saveDeck(d); }
     else if(t.id === 'ms-lab'){ if(t.value) f.lab = {f: t.value, after: !!(f.lab && f.lab.after)}; else delete f.lab; geoVer++; saveDeck(d); }
     else if(t.id === 'ms-labafter'){ if(f.lab){ f.lab.after = t.checked; saveDeck(d); } }
@@ -2987,7 +3061,7 @@ document.addEventListener('keydown', e => {
 { const r0 = render, e0 = renderEd; render = function(){ r0.apply(this, arguments); gSync(); }; renderEd = function(){ e0.apply(this, arguments); gSync(); }; }
 
 /* ---------- start ---------- */
-window.__stufen = {G, gSync, gLevel, guessFolder, folderTree, placesJson, covMissing, phoneR, VIEW,covParse, covC, recrop, geoInvOf: f => geoInv(f), healthRun, inSel,resume, sendPulse, TAB, seen, forceCheck: () => { lastCheck = 0; return resume(); },lettersOf, dayPlan, simulate, shareOut, majorOf, hintsOf, replan: () => { planC = null; stateV++; },nextAcross, newLimit, snapshot, counts, nextCard, centroidOf, markOf, setMark, schedule, parseStages, fmtDur, hitRegion, parseRegion, fmtRegion, geoRead, geoProject, geoSimplify, geoAdj, fitView, geoFn, geoInv, statsOf, dayKey, S};
+window.__stufen = {G, gSync, gStep, gSnap, gLevel, guessFolder, folderTree, placesJson, covMissing, phoneR, VIEW,covParse, covC, recrop, geoInvOf: f => geoInv(f), healthRun, inSel,resume, sendPulse, TAB, seen, forceCheck: () => { lastCheck = 0; return resume(); },lettersOf, dayPlan, simulate, shareOut, majorOf, hintsOf, replan: () => { planC = null; stateV++; },nextAcross, newLimit, snapshot, counts, nextCard, centroidOf, markOf, setMark, schedule, parseStages, fmtDur, hitRegion, parseRegion, fmtRegion, geoRead, geoProject, geoSimplify, geoAdj, fitView, geoFn, geoInv, statsOf, dayKey, S};
 document.head.appendChild(Object.assign(document.createElement('style'), {textContent: RCSS}));
 async function boot(){
   render();

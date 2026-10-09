@@ -44,12 +44,27 @@ const FAKE=`(()=>{window.__g={maps:0,moves:0,cam:null,opts:null,type:null};
  ok(Math.abs(g.dl*pxPerDeg(g)-g.W)<0.6,'one degree on Google is as wide as one degree of the shapes ('+(g.dl*pxPerDeg(g)).toFixed(2)+' px across a '+g.W+' px box)');
  ok(Math.abs(g.gw*g.sc-g.W)<0.6&&Math.abs(g.gh*g.sc-g.H)<0.6,'scaled, it fills the box exactly, so Google’s logo and notices stay in its corners');
  // zooming with the wheel settles on a whole level
- const box=await p.locator('#clickmap .rmap').boundingBox();await p.mouse.move(box.x+box.width*0.5,box.y+box.height*0.5);await p.mouse.wheel(0,-260);
+ const box=await p.locator('#clickmap .rmap').boundingBox();await p.mouse.move(box.x+box.width*0.5,box.y+box.height*0.5);await p.mouse.wheel(0,-45);
  let g1=await geo();ok(g1.k>g.k&&Math.abs(g1.dl*pxPerDeg(g1)-g1.W)<0.6,'while zooming it follows the view');
  await p.waitForTimeout(450);let g2=await geo();ok(Math.abs(g2.sc-1)<0.005&&g2.k>1,'when the zoom stops, the view settles on a whole Google level (scale '+g2.sc.toFixed(4)+')');
  ok(Math.abs(g2.dl*pxPerDeg(g2)-g2.W)<0.6,'and still matches the shapes');
- await p.click('#clickmap [data-act="zoom"][data-v="in"]');let g3=await geo();ok(Math.abs(g3.k/g2.k-2)<0.01&&g3.cam.zoom===g2.cam.zoom+1&&Math.abs(g3.sc-1)<0.005,'the + button goes one Google level in');
- for(let i=0;i<30;i++) await p.click('#clickmap [data-act="zoom"][data-v="in"]');let g4=await geo();ok(g4.k>500&&g4.cam.zoom>=17&&g4.cam.zoom<=19,'the map can be zoomed to street level (level '+g4.cam.zoom+')');
+ // a small flowing zoom (trackpad) glides on to the next level instead of springing back; the spot under the pointer stays put
+ const PX=Math.round(box.x+box.width*0.3),PY=Math.round(box.y+box.height*0.4);
+ const under=()=>p.evaluate(([px,py])=>{const A=window.__stufen,S=A.S,d=S.decks[S.cur],f=d.fields.find(f=>f.kind==='region'),v=A.VIEW.study,r=document.querySelector('#clickmap .rmap').getBoundingClientRect();return A.geoInv(f)(v.x+(px-r.left)/r.width/v.k,v.y+(py-r.top)/r.height*(v.r||1)/v.k);},[PX,PY]);
+ const notch=(dy,n=1)=>p.evaluate(([x,y,dy,n])=>{const el=document.querySelector('#clickmap .rmap svg');for(let i=0;i<n;i++)el.dispatchEvent(new WheelEvent('wheel',{deltaY:dy,deltaMode:1,clientX:x,clientY:y,bubbles:true,cancelable:true}));},[PX,PY,dy,n]);
+ await notch(-3,2);await p.waitForTimeout(450);g2=await geo();
+ await p.mouse.move(PX,PY);const u0=await under();await p.mouse.wheel(0,-40);await p.waitForTimeout(60);const gs=await geo();await p.waitForTimeout(500);let gt=await geo();const u1=await under();
+ ok(gs.k>g2.k&&gs.k<g2.k*1.3&&gt.cam.zoom===g2.cam.zoom+1&&Math.abs(gt.sc-1)<0.005,'a small trackpad zoom in ends one level further in, not back where it began (level '+g2.cam.zoom+' → '+gt.cam.zoom+')');
+ ok(Math.abs(u1[0]-u0[0])<4e-4&&Math.abs(u1[1]-u0[1])<4e-4,'and the place under the pointer has not moved (within a pixel)');
+ await p.mouse.wheel(0,30);await p.waitForTimeout(500);let gu=await geo();ok(gu.cam.zoom===gt.cam.zoom-1&&Math.abs(gu.sc-1)<0.005,'a small zoom out ends one level further out');
+ // one notch of a mouse wheel is one level, in a glide; quick notches add up
+ await notch(-3);await p.waitForTimeout(40);const gm=await geo();await p.waitForTimeout(400);let gn=await geo();const u2=await under();
+ ok(gm.k>gu.k*1.02&&gm.k<gu.k*1.98&&gn.cam.zoom===gu.cam.zoom+1&&Math.abs(gn.sc-1)<0.005,'one notch of the mouse wheel glides one level in');
+ ok(Math.abs(u2[0]-u0[0])<4e-4&&Math.abs(u2[1]-u0[1])<4e-4,'around the pointer');
+ await notch(-3,2);await p.waitForTimeout(450);let go2=await geo();ok(go2.cam.zoom===gn.cam.zoom+2&&Math.abs(go2.sc-1)<0.005,'two quick notches go two levels');
+ await notch(3,3);await p.waitForTimeout(450);g2=await geo();ok(g2.cam.zoom===go2.cam.zoom-3&&Math.abs(g2.sc-1)<0.005,'three notches back go three levels out');
+ await p.click('#clickmap [data-act="zoom"][data-v="in"]');await p.waitForTimeout(350);let g3=await geo();ok(Math.abs(g3.k/g2.k-2)<0.01&&g3.cam.zoom===g2.cam.zoom+1&&Math.abs(g3.sc-1)<0.005,'the + button goes one Google level in');
+ for(let i=0;i<30;i++){ await p.click('#clickmap [data-act="zoom"][data-v="in"]');await p.waitForTimeout(40); } await p.waitForTimeout(400);let g4=await geo();ok(g4.k>500&&g4.cam.zoom>=17&&g4.cam.zoom<=19,'the map can be zoomed to street level (level '+g4.cam.zoom+')');
  await p.click('#clickmap [data-act="zoom"][data-v="fit"]');let g5=await geo();ok(g5.k===1,'the fit button shows the whole map again');
  // dragging moves it
  await p.mouse.wheel(0,-300);await p.waitForTimeout(450);const a0=await geo();await p.mouse.move(box.x+300,box.y+200);await p.mouse.down();await p.mouse.move(box.x+360,box.y+240,{steps:4});await p.mouse.up();const a1=await geo();
