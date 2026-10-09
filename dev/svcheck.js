@@ -33,9 +33,9 @@ const FAKE=`(()=>{window.__g={maps:0,panos:0,asks:[],delay:0,flaky:1};
  ok(g.q.radius===1000&&g.q.preference==='nearest'&&JSON.stringify(g.q.sources)==='["google"]','it asks for the nearest official panorama within 1 km');
  let c=await cov(p);ok(c&&c.n===8&&c.name.startsWith('Street View check')&&c.p.length===8,'the 8 rows with Street View are stored as the map’s locations ('+(c&&c.name)+')');
  ok(c.p.every(q=>q[4].length===22&&q[5].startsWith('row:')&&q[2]===137)&&Math.abs(c.p[0][0]%1-0.502)<0.01,'each with its panorama, the direction of the road and its row');
- const mt=await p.textContent('#ms-miss');ok(mt.startsWith('4 rows of this map have no location')&&mt.includes('Cell A1')&&mt.includes('Cell B1')&&!mt.includes('Cell C1'),'the rows without official Street View are listed, the user photo sphere among them: '+mt);
+ await p.click('[data-act="msRev"]');const mt=await p.textContent('#ms-miss')+' '+await p.textContent('#ms-revl');ok(mt.startsWith('4 rows of this map have no location')&&mt.includes('Cell A1')&&mt.includes('Cell B1')&&!mt.includes('Cell C1'),'the rows without official Street View are listed, the user photo sphere among them: '+mt);
  ok((await p.textContent('#ms-msg')).includes('The 4 without are listed below'),'and the result says so');
- const hr=await p.locator('#ms-miss a').evaluateAll(l=>l.map(a=>a.href));ok(hr.length===4&&hr[0].includes('center=14.5')&&hr[0].includes(',120.5'),'each listed row is a link to its place on Google Maps: '+hr[0]);
+ const hr=await p.locator('#ms-rev a').evaluateAll(l=>l.map(a=>a.href));ok(hr.length===4&&hr[0].includes('center=14.5')&&hr[0].includes(',120.5'),'each listed row is a link to its place on Google Maps: '+hr[0]);await p.click('[data-act="msRev"]');
  // a second run replaces the file, after a confirmation, with another distance
  ok(await p.locator('[data-act="msCheck"]').count()===0&&await p.locator('[data-act="ask"][data-v^="msCheck"]').count()===1,'with locations loaded, the check asks before replacing them');
  await p.selectOption('#ms-rad','3000');await p.click('[data-act="ask"][data-v^="msCheck"]');
@@ -63,7 +63,16 @@ const FAKE=`(()=>{window.__g={maps:0,panos:0,asks:[],delay:0,flaky:1};
  ok(await p.evaluate(()=>__g.maps)===1&&p.reqs.filter(u=>u.includes('googleapis.com/maps')).length===1,'studying afterwards loads the Google map once, from the script already fetched');
  // after a reload the stored locations are fetched again when Map settings opens, so the list is there without a new check
  await p.waitForTimeout(1500);await p.reload();await p.waitForFunction(()=>document.querySelector('#status').textContent!=='Loading…');await p.click('.deck');await p.click('[data-act="tab"][data-v="cards"]');await p.click('[data-act="msOpen"]');
- await p.waitForSelector('#ms-miss',{timeout:8000}).then(async()=>ok((await p.textContent('#ms-miss')).includes('Cell A1')&&p.reqs.filter(u=>u.includes('googleapis.com/maps')).length===1,'after reloading the page, Map settings still lists the rows without a location, without asking Google'),()=>ok(false,'after reloading the page, Map settings lists the rows without a location'));
+ await p.waitForSelector('#ms-miss',{timeout:8000}).then(async()=>ok((await p.textContent('#ms-miss')).startsWith('4 rows')&&p.reqs.filter(u=>u.includes('googleapis.com/maps')).length===1,'after reloading the page, Map settings still lists the rows without a location, without asking Google'),()=>ok(false,'after reloading the page, Map settings lists the rows without a location'));
+ // choosing which of the rows without a location to delete
+ const rows=()=>p.evaluate(()=>{const s=window.__stufen.S;return s.notes[s.cur].size;});
+ ok(await p.locator('[data-act="ask"][data-v^="msPrune"]').count()===0,'there is no delete button until the list is opened');
+ await p.click('[data-act="msRev"]');ok(await p.locator('#ms-revl input').count()===4&&await p.locator('#ms-revl input:checked').count()===4&&(await p.textContent('[data-act="ask"][data-v^="msPrune"]'))==='Delete 4 rows','the list shows the 4 rows, all ticked');
+ await p.click('[data-act="msRevAll"][data-v="0"]');ok(await p.locator('#ms-revl input:checked').count()===0&&await p.locator('[data-v^="msPrune"]').count()===0&&(await p.textContent('#ms-revn')).startsWith('0 of 4'),'“None” unticks them all, and nothing can be deleted then');
+ await p.click('[data-act="msRevAll"][data-v="1"]');await p.locator('#ms-revl label',{hasText:'Cell B1'}).locator('input').uncheck();
+ ok((await p.textContent('[data-act="ask"][data-v^="msPrune"]'))==='Delete 3 rows'&&(await p.textContent('#ms-revn')).startsWith('3 of 4'),'unticking one row leaves 3 to delete');
+ await p.click('[data-act="ask"][data-v^="msPrune"]');await p.click('[data-act="msPrune"]');await msg(p,'3 rows deleted, 1 kept');
+ ok(await rows()===9&&(await p.textContent('#ms-miss')).startsWith('1 row of this map has no location')&&(await p.textContent('#ms-revl')).includes('Cell B1')&&await p.locator('#ms-revl input:checked').count()===0,'the 3 ticked rows are deleted; the unticked one stays in the deck and in the list, still unticked');
  ok(p.errs.length===0,'no page errors '+p.errs.join(' | '));
  await b.close();
 })();

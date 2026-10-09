@@ -72,6 +72,9 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 label.inline{flex-direction:row;align-items:center;gap:8px}
 input[type=number]{width:72px}
 kbd{font:400 11px var(--f-mono);border:1px solid currentColor;border-radius:4px;padding:0 4px;opacity:.7;margin-left:6px}
+.msrev{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.msrev-l{max-height:min(46vh,340px);overflow:auto;display:flex;flex-direction:column;gap:2px;font-size:13.5px}
+.msrev-l label{padding:3px 2px;align-items:baseline}
 .banner{background:var(--accent-soft);border-radius:6px;padding:10px 12px;font-size:13px}
 .empty{padding:40px 0;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 
@@ -1462,6 +1465,8 @@ function renderCe(){
 /* a row's name as a link to the middle of its shape on Google Maps, so a row without a location can be looked at before it is deleted */
 function msWhere(d, f, n){ const c = centroidOf(regOf(n, f.id)), name = esc(rowLabel(d, n)); if(!c) return name; let [lon, lat] = geoInv(f)(c[0], c[1]); if(lon > 180) lon -= 360;
   return `<a href="https://www.google.com/maps/@?api=1&map_action=map&center=${lat.toFixed(5)},${lon.toFixed(5)}&zoom=13" target="_blank" rel="noopener">${name}</a>`; }
+/* redraw Map settings without losing the place in the list of rows or in the sheet */
+function msKeepScroll(){ const l = $('#ms-revl'), sh = $('.sheet.ms'), m = $('#modal3'), a = l ? l.scrollTop : 0, b = sh ? sh.scrollTop : 0, c = m ? m.scrollTop : 0; renderMs(); const l2 = $('#ms-revl'), s2 = $('.sheet.ms'); if(l2) l2.scrollTop = a; if(s2) s2.scrollTop = b; if(m) m.scrollTop = c; }
 /* settings of one GeoJSON map column */
 function renderMs(){
   const m = $('#modal3'), M = S.ms, d = S.decks[S.cur], f = M && d && d.fields.find(f => f.id === M.fid && f.geo);
@@ -1485,7 +1490,13 @@ function renderMs(){
     ${G.key && G.state >= 0 ? (M.chk ? `<div class="row"><span class="small grow" id="ms-chk">${svLine(M.chk)}</span><button class="btn" data-act="msCheckStop">Stop</button></div>`
       : `<div class="row"><span class="small grow muted">Or let the page ask Google itself, as MapCheckr does: for every row, the nearest official Street View within <select id="ms-rad" aria-label="Search distance" style="width:auto;display:inline-block;padding:1px 4px">${[[250, '250 m'], [1000, '1 km'], [3000, '3 km'], [10000, '10 km']].map(([v, l]) => opt(v, M.rad || 1000, l)).join('')}</select> of the middle of its shape. Free, and not a map load.${cov ? ' The result replaces the loaded file.' : ''}</span>${cov ? confirmBtn('msCheck', f.id, 'Check Street View') : `<button class="btn" data-act="msCheck" data-v="${f.id}"${assets ? '' : ' disabled'}>Check Street View</button>`}</div>`) : ''}
     <div class="row"><span class="small grow muted">One coordinate per row, at the middle of its shape, as a file map-making.app can import. Each carries the row’s name as a tag.</span><button class="btn" data-act="msExport"${downloads ? '' : ' disabled'}>Save places file</button></div>
-    ${cov && cc && !cc.loading ? (() => { const miss = covMissing(d, f) || []; return `<div class="row"><span class="small grow" id="ms-miss">${miss.length ? pl(miss.length, 'row') + ' of this map ' + (miss.length === 1 ? 'has' : 'have') + ' no location in the loaded file' + ': ' + miss.slice(0, 80).map(n => msWhere(d, f, n)).join(', ') + (miss.length > 80 ? ' and ' + (miss.length - 80) + ' more' : '') + '.' : 'Every row of this map has at least one location.'}</span>${miss.length ? confirmBtn('msPrune', f.id, 'Delete those rows') : ''}</div>`; })() : ''}
+    ${cov && cc && !cc.loading ? (() => { const miss = covMissing(d, f) || [], R = M.rev, keep = (R && R.keep) || {}, sel = miss.filter(n => !keep[n.id]).length;
+      if(!miss.length) return `<div class="row"><span class="small grow" id="ms-miss">Every row of this map has at least one location.</span></div>`;
+      const info = n => txt.map(x => n.f[x.id]).filter(Boolean).slice(1, 4).map(v => esc(String(v))).join(' · ');
+      return `<div class="row"><span class="small grow" id="ms-miss">${pl(miss.length, 'row')} of this map ${miss.length === 1 ? 'has' : 'have'} no location in the loaded file.</span><button class="btn" data-act="msRev" aria-expanded="${R ? 'true' : 'false'}">${R ? 'Hide the list' : 'Choose rows to delete…'}</button></div>
+      ${R ? `<div class="msrev" id="ms-rev"><div class="row small"><span class="grow muted">Ticked rows will be deleted. Untick the ones to keep; a name opens the place on Google Maps.</span><button class="btn ghost" data-act="msRevAll" data-v="1">All</button><button class="btn ghost" data-act="msRevAll" data-v="0">None</button></div>
+        <div class="msrev-l" id="ms-revl">${miss.map(n => `<label class="inline"><input type="checkbox" data-msrow="${esc(n.id)}"${keep[n.id] ? '' : ' checked'}> <span>${msWhere(d, f, n)}${info(n) ? ` <span class="muted">${info(n)}</span>` : ''}</span></label>`).join('')}</div>
+        <div class="row"><span class="small grow" id="ms-revn">${sel} of ${miss.length} ticked.</span>${sel ? confirmBtn('msPrune', f.id, 'Delete ' + pl(sel, 'row')) : ''}</div></div>` : ''}`; })() : ''}
     ${cov ? `<label>Dots on the map<select id="ms-cov">${opt(0, cov.show || 0, 'Off')}${opt(1, cov.show || 0, 'After the answer')}${opt(2, cov.show || 0, 'Always, also while answering')}</select></label>` : ''}
     <h3>Start view</h3>
     <div class="row"><span class="small grow">${f.home ? 'Sessions on this map start zoomed in ' + (+f.home.k).toFixed(1) + '×.' : 'Sessions start on the whole map. To change that, zoom and move the map while studying and choose “Set start view” above the card.'}</span>${f.home ? `<button class="btn" data-act="msHomeDel">Start on the whole map</button>` : ''}</div></div>`;
@@ -2718,11 +2729,14 @@ const ACT = {
   async msCovDel(d, v){ const f = d.fields.find(f => f.id === v); S.confirm = null; if(f && f.cov){ try{ if(assets) await assets.delete(f.cov.id); }catch(e){} covC.delete(f.cov.id); delete f.cov; saveDeck(d); if(S.ms) S.ms.msg = 'Locations removed.'; } renderMs(); },
   async msExport(d){ const f = S.ms && d.fields.find(f => f.id === S.ms.fid); if(!f || !downloads) return; const o = placesJson(d, f);
     try{ await downloads.save({filename: (d.name.replace(/[^\w\- ]+/g, '').trim() || 'deck') + ' places.json', data: JSON.stringify(o)}); S.ms.msg = pl(o.customCoordinates.length, 'place') + ' saved.'; }catch(e){} renderMs(); },
-  async msPrune(d, v){ const f = d.fields.find(f => f.id === v); S.confirm = null; if(!f || S.busy) return; const miss = covMissing(d, f) || []; if(!miss.length) return renderMs();
+  msRev(){ const M = S.ms; if(!M) return; M.rev = M.rev ? null : {keep: {}}; S.confirm = null; renderMs(); },
+  msRevAll(d, v){ const M = S.ms, f = M && d.fields.find(f => f.id === M.fid); if(!f || !M.rev) return; M.rev.keep = {}; if(v === '0') for(const n of covMissing(d, f) || []) M.rev.keep[n.id] = 1; S.confirm = null; msKeepScroll(); },
+  /* delete the rows without a location that are ticked in the list (all of them if the list was never opened) */
+  async msPrune(d, v){ const f = d.fields.find(f => f.id === v); S.confirm = null; if(!f || S.busy) return; const keep = (S.ms && S.ms.rev && S.ms.rev.keep) || {}, all = covMissing(d, f) || [], miss = all.filter(n => !keep[n.id]); if(!miss.length) return renderMs();
     const r = await snapshot('Before deleting rows without a location in ' + d.name), gone = new Set(miss.map(n => n.id));
     for(const n of miss){ notesOf(d).delete(n.id); save(notePath(d, n), null); }
     for(const n of notesOf(d).values()){ let ch = false; if(n.r) for(const k in n.r){ const c = n.r[k].close; if(c && c.some(id => gone.has(id))){ n.r[k].close = c.filter(id => !gone.has(id)); ch = true; } } if(ch) saveNote(d, n); }
-    geoVer++; if(S.ms) S.ms.msg = pl(miss.length, 'row') + ' deleted.' + snapNote(r); renderMs(); render(); },
+    geoVer++; if(S.ms){ S.ms.msg = pl(miss.length, 'row') + ' deleted' + (all.length > miss.length ? ', ' + (all.length - miss.length) + ' kept' : '') + '.' + snapNote(r); if(all.length === miss.length) S.ms.rev = null; } renderMs(); render(); },
   msHomeDel(d){ const f = S.ms && d.fields.find(f => f.id === S.ms.fid); if(f){ delete f.home; saveDeck(d); } renderMs(); },
   healthRun(){ healthRun(); },
   healthFix(d, v){ healthFix(v); },
@@ -2948,6 +2962,7 @@ document.addEventListener('change', e => { if(changing) return; changing = true;
 function onChange(e){
   const t = e.target, d = S.decks[S.cur];
   if(t.id === 'covpick'){ const file = t.files[0]; t.value = ''; const f = d && S.ms && d.fields.find(f => f.id === S.ms.fid); if(file && f) covImport(d, f, file); return; }
+  if(t.dataset && t.dataset.msrow && S.ms && S.ms.rev){ if(t.checked) delete S.ms.rev.keep[t.dataset.msrow]; else S.ms.rev.keep[t.dataset.msrow] = 1; S.confirm = null; msKeepScroll(); return; }
   if(t.id && t.id.startsWith('ms-') && S.ms && d){ const f = d.fields.find(f => f.id === S.ms.fid); if(!f) return; S.ms.msg = '';
     if(t.id === 'ms-rad'){ S.ms.rad = +t.value || 1000; return; }
     if(t.id === 'ms-look'){ if(t.value === 'gmap') f.style = 'gmap'; else delete f.style; geoVer++; saveDeck(d); }
