@@ -1466,7 +1466,8 @@ function msWhere(d, f, n){ const c = centroidOf(regOf(n, f.id)), name = esc(rowL
 function renderMs(){
   const m = $('#modal3'), M = S.ms, d = S.decks[S.cur], f = M && d && d.fields.find(f => f.id === M.fid && f.geo);
   if(!f){ S.ms = null; if(!S.oe && !S.ce){ m.hidden = true; m.innerHTML = ''; } return; }
-  const opt = (v, cur, l) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`, txt = d.fields.filter(x => x.kind === 'text'), crop = f.geo.c || 0, cov = f.cov, cc = cov && covC.get(cov.id);
+  const opt = (v, cur, l) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`, txt = d.fields.filter(x => x.kind === 'text'), crop = f.geo.c || 0, cov = f.cov; if(cov) covOf(f);   // fetch the stored locations if this opening of the page has not yet: the list of rows without one needs them
+  const cc = cov && covC.get(cov.id);
   m.hidden = false;
   m.innerHTML = `<div class="sheet ms" role="dialog" aria-label="Map settings" style="max-width:640px"><div class="row"><h2 class="grow">Map settings: ${esc(f.name)}</h2><button class="btn ghost" data-act="msClose">Close</button></div>
     ${M.msg ? `<div class="banner" id="ms-msg">${esc(M.msg)}</div>` : ''}

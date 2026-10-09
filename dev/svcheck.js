@@ -61,6 +61,9 @@ const FAKE=`(()=>{window.__g={maps:0,panos:0,asks:[],delay:0,flaky:1};
  // the map shown afterwards is still the one map, from the one script
  await p.evaluate(()=>{__g.delay=0;});await p.click('[data-act="tab"][data-v="study"]');await p.click('[data-act="start"]');await p.waitForSelector('#clickmap .rmap.gg .gbg');
  ok(await p.evaluate(()=>__g.maps)===1&&p.reqs.filter(u=>u.includes('googleapis.com/maps')).length===1,'studying afterwards loads the Google map once, from the script already fetched');
+ // after a reload the stored locations are fetched again when Map settings opens, so the list is there without a new check
+ await p.waitForTimeout(1500);await p.reload();await p.waitForFunction(()=>document.querySelector('#status').textContent!=='Loading…');await p.click('.deck');await p.click('[data-act="tab"][data-v="cards"]');await p.click('[data-act="msOpen"]');
+ await p.waitForSelector('#ms-miss',{timeout:8000}).then(async()=>ok((await p.textContent('#ms-miss')).includes('Cell A1')&&p.reqs.filter(u=>u.includes('googleapis.com/maps')).length===1,'after reloading the page, Map settings still lists the rows without a location, without asking Google'),()=>ok(false,'after reloading the page, Map settings lists the rows without a location'));
  ok(p.errs.length===0,'no page errors '+p.errs.join(' | '));
  await b.close();
 })();
