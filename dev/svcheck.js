@@ -35,6 +35,7 @@ const FAKE=`(()=>{window.__g={maps:0,panos:0,asks:[],delay:0,flaky:1};
  ok(c.p.every(q=>q[4].length===22&&q[5].startsWith('row:')&&q[2]===137)&&Math.abs(c.p[0][0]%1-0.502)<0.01,'each with its panorama, the direction of the road and its row');
  const mt=await p.textContent('#ms-miss');ok(mt.startsWith('4 rows of this map have no location')&&mt.includes('Cell A1')&&mt.includes('Cell B1')&&!mt.includes('Cell C1'),'the rows without official Street View are listed, the user photo sphere among them: '+mt);
  ok((await p.textContent('#ms-msg')).includes('The 4 without are listed below'),'and the result says so');
+ const hr=await p.locator('#ms-miss a').evaluateAll(l=>l.map(a=>a.href));ok(hr.length===4&&hr[0].includes('center=14.5')&&hr[0].includes(',120.5'),'each listed row is a link to its place on Google Maps: '+hr[0]);
  // a second run replaces the file, after a confirmation, with another distance
  ok(await p.locator('[data-act="msCheck"]').count()===0&&await p.locator('[data-act="ask"][data-v^="msCheck"]').count()===1,'with locations loaded, the check asks before replacing them');
  await p.selectOption('#ms-rad','3000');await p.click('[data-act="ask"][data-v^="msCheck"]');

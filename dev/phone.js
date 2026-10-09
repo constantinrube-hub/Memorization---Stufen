@@ -49,7 +49,7 @@ fs.writeFileSync('/tmp/stufen-wide.geojson',JSON.stringify({type:'FeatureCollect
  const back=await q.evaluate(()=>{const o=JSON.parse(window.__dl[0].data);const keep=o.customCoordinates.slice(0,20).map((c,i)=>Object.assign({},c,{panoId:'P'+i,lat:i<2?c.lat+1.2:c.lat+0.01}));return JSON.stringify({name:'checked',customCoordinates:keep});});
  fs.writeFileSync('/tmp/stufen-checked.json',back);
  await q.setInputFiles('#covpick','/tmp/stufen-checked.json');await q.waitForFunction(()=>window.__stufen.S.ms&&/locations stored/.test(window.__stufen.S.ms.msg),null,{timeout:15000});
- await q.waitForSelector('#ms-miss');const mt=await q.textContent('#ms-miss');ok(mt.startsWith('7 rows of this map have no location'),'rows without a location are counted; a moved but tagged one still counts as found: '+mt);
+ await q.waitForSelector('#ms-miss');const mt=await q.textContent('#ms-miss');ok(mt.startsWith('7 rows of this map have no location in the loaded file: ')&&await q.locator('#ms-miss a').count()===7,'rows without a location are counted; a moved but tagged one still counts as found: '+mt);
  await q.click('[data-act="ask"][data-v^="msPrune"]');await q.click('[data-act="msPrune"]');await q.waitForFunction(()=>window.__stufen.S.ms&&/7 rows deleted/.test(window.__stufen.S.ms.msg),null,{timeout:15000});
  ok(await q.evaluate(()=>{const s=window.__stufen.S;return s.notes[s.cur].size;})===20&&(await q.textContent('#ms-miss')).startsWith('Every row'),'the 7 rows are deleted, 20 remain, each with a location');
  ok(await q.evaluate(()=>window.__stufen.S.meta.snaps.some(x=>x.why.startsWith('Before deleting rows without a location'))),'a snapshot was saved first');
