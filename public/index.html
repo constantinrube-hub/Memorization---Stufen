@@ -981,7 +981,7 @@ function regionHtml(f, value, o = {}){
     path('pg', o.ghost || []) +
     (o.ring && polys.length ? `<mask id="${mid}" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="${hs}"><rect width="1000" height="${hs}" fill="#fff"/><path fill="#000" fill-rule="evenodd" d="${dOf(polys, H)}"/></mask><g mask="url(#${mid})"><path class="pr" style="vector-effect:none" d="${dOf(polys, H)}" stroke-width="${(o.ring * 2000).toFixed(1)}"/></g>` : '') +
     path('pk', o.close || []) + path(o.wrongCls || 'pw', o.wrong || []) + path('pp', polys) + (o.extra ? o.extra(pts, dot) : '') +
-    (o.zoom && vec && f.cov && f.cov.show && (f.cov.show === 2 || !o.quiz) ? covPath(f) : '') +
+    (o.zoom && vec && f.cov && f.cov.show && (f.cov.show === 2 || !o.quiz) ? covPath(f, o.nid) : '') +
     (lab && f.lab && o.d && (!f.lab.after || !o.quiz) ? groupLabels(o.d, f) : '') + (lab ? cx.labels : '') + (o.click ? dot('pc', o.click.x, o.click.y, 6.5) : '') + `</svg>` +
     (o.zoom ? `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button>${lab && !(f.nolab && o.quiz) ? `<button data-act="labels" class="${labelsOn ? 'on' : ''}" title="City names on or off" aria-label="City names on or off" style="font-size:12px">Aa</button>` : ''}${vec ? `<button data-act="borders" class="${f.nobd ? '' : 'on'}" title="Borders on or off" aria-label="Borders on or off" style="font-size:14px">▦</button>` : ''}${gg ? `<button data-act="gType" class="${G.type === 'hybrid' ? 'on' : ''}" title="Satellite or standard map" aria-label="Satellite or standard map" style="font-size:14px">◐</button>` : ''}${vec && f.cov ? `<button data-act="covTog" class="${f.cov.show ? 'on' : ''}" title="${['Coverage dots: off', 'Coverage dots: after the answer', 'Coverage dots: always'][f.cov.show || 0]}. Click to change." aria-label="Coverage dots" style="font-size:13px">${f.cov.show === 2 ? '⁙' : '⁖'}</button>` : ''}</div>` : '') + `</div>`;
 }
@@ -1035,21 +1035,30 @@ function covOf(f){
     fetch('/_blob/' + id).then(r => r.ok ? r.json() : null).then(o => { covC.set(id, {p: o && Array.isArray(o.p) ? o.p : []}); if(S.tab === 'study' && S.study.on && !drag) render(); if(S.ms) renderMs(); }).catch(() => { covC.set(id, {p: []}); });
     return null; }
   if(c.loading) return null;
-  if(c.v !== geoVer || c.fid !== f.id){ const pr = geoFn(f), n = c.p.length, xs = new Float32Array(n), ys = new Float32Array(n); for(let i = 0; i < n; i++){ const q = pr(c.p[i][1], c.p[i][0]); xs[i] = q[0]; ys[i] = q[1]; } c.xs = xs; c.ys = ys; c.v = geoVer; c.fid = f.id; c.path = null; c.rows = new Map(); }
+  if(c.v !== geoVer || c.fid !== f.id){ const pr = geoFn(f), n = c.p.length, xs = new Float32Array(n), ys = new Float32Array(n); for(let i = 0; i < n; i++){ const q = pr(c.p[i][1], c.p[i][0]); xs[i] = q[0]; ys[i] = q[1]; } c.xs = xs; c.ys = ys; c.v = geoVer; c.fid = f.id; c.paths = null; c.rows = new Map(); }
   return c;
 }
-function covPath(f){   // one dot per small cell of the map, so a dense file stays light to draw
-  const c = covOf(f); if(!c) return ''; if(c.path != null) return c.path;
+function covPath(f, nid){   // one dot per small cell of the map, so a dense file stays light to draw
+  const c = covOf(f); if(!c) return '';
+  /* a file whose locations belong to single cards (a car-and-month deck: the shapes overlap, the locations do not) shows only this card's own dots, and none while the question is open */
+  const own = f.cov.row ? (nid ? covTagged(c, nid) : []) : null, key = own ? 'r:' + nid : '';
+  if(!c.paths) c.paths = new Map(); if(c.paths.has(key)) return c.paths.get(key);
   const H = 1000 * (f.ar || 1), G = 700, seen = new Set(); let dd = '';
-  for(let i = 0; i < c.xs.length && seen.size < 30000; i++){ const x = c.xs[i], y = c.ys[i]; if(x < 0 || x > 1 || y < 0 || y > 1) continue; const k = Math.floor(x * G) * 4096 + Math.floor(y * G * (f.ar || 1)); if(seen.has(k)) continue; seen.add(k); dd += 'M' + (x * 1000).toFixed(1) + ' ' + (y * H).toFixed(1) + 'h0'; }
-  return c.path = `<path class="cv" d="${dd}"/>`;
+  const idx = own || {length: c.xs.length}, at = i => own ? own[i] : i;
+  for(let j = 0; j < idx.length && seen.size < 30000; j++){ const i = at(j), x = c.xs[i], y = c.ys[i]; if(x < 0 || x > 1 || y < 0 || y > 1) continue; const k = Math.floor(x * G) * 4096 + Math.floor(y * G * (f.ar || 1)); if(seen.has(k)) continue; seen.add(k); dd += 'M' + (x * 1000).toFixed(1) + ' ' + (y * H).toFixed(1) + 'h0'; }
+  const h = dd ? `<path class="cv" d="${dd}"/>` : ''; c.paths.set(key, h); return h;
+}
+/* the locations carrying one row's tag */
+function covTagged(c, nid){
+  if(!c.tags){ c.tags = new Map(); c.p.forEach((q, i) => { if(q[5]){ const a = c.tags.get(q[5]); if(a) a.push(i); else c.tags.set(q[5], [i]); } }); }
+  return c.tags.get('row:' + nid) || [];
 }
 /* the stored locations that lie inside one row's shape */
 function covIn(f, n){   // …plus any location that carries this row's tag (set by the export below), wherever a checker moved it
   const c = covOf(f); if(!c) return null; let l = c.rows.get(n.id); if(l) return l;
-  if(!c.tags){ c.tags = new Map(); c.p.forEach((q, i) => { if(q[5]){ const a = c.tags.get(q[5]); if(a) a.push(i); else c.tags.set(q[5], [i]); } }); }
-  const polys = regOf(n, f.id), b = bboxOf(polys), ar = f.ar || 1; l = (c.tags.get('row:' + n.id) || []).slice();
-  for(let i = 0; i < c.xs.length; i++){ const x = c.xs[i], y = c.ys[i]; if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue; if(hitRegion(polys, x, y, ar).inside && !l.includes(i)) l.push(i); }
+  l = covTagged(c, n.id).slice();
+  if(!f.cov.row){ const polys = regOf(n, f.id), b = bboxOf(polys), ar = f.ar || 1;   // a file split by row: only the row's own locations, other rows' shapes overlap this one
+    for(let i = 0; i < c.xs.length; i++){ const x = c.xs[i], y = c.ys[i]; if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue; if(hitRegion(polys, x, y, ar).inside && !l.includes(i)) l.push(i); } }
   c.rows.set(n.id, l); return l;
 }
 /* ---------- Street View check: what MapCheckr does, done by the page ----------
@@ -1133,7 +1142,7 @@ function buildOpts(d, t, n){
 
 /* ---------- templates ---------- */
 const FACE_CSS = `:host{display:block}.card{font:400 22px/1.4 var(--f-body);color:var(--ink);text-align:center;overflow-wrap:anywhere}
-img{max-width:100%;max-height:46vh;border-radius:6px}hr{border:0;border-top:1px solid var(--line);margin:18px 0}small{display:inline-block;font-size:.6em;line-height:1.5;color:var(--muted)}` + RCSS;
+img{max-width:100%;max-height:46vh;border-radius:6px}a{color:#1a73e8;text-decoration:none;white-space:nowrap}a:hover{text-decoration:underline}hr{border:0;border-top:1px solid var(--line);margin:18px 0}small{display:inline-block;font-size:.6em;line-height:1.5;color:var(--muted)}` + RCSS;
 const MAJOR0 = ['S', 'T/D', 'N', 'M', 'R', 'L', 'J/SH/CH', 'K/G', 'F/V/W', 'P/B'];
 const majorOf = v => { const a = Array.isArray(S.meta.major) && S.meta.major.length === 10 ? S.meta.major : MAJOR0; return (String(v).match(/\d/g) || []).map(c => a[+c] || MAJOR0[+c]).join('-'); };
 /* the consonants a mnemonic was built from, as the row itself gives them: the part before the arrow in "RML → Rommel", shown as R-M-L */
@@ -1149,6 +1158,8 @@ function allowedNow(t, st){
   if(t.hintCap && st.hints) al = al.filter(g => g !== 'easy' && g !== 'brainer');
   return al;
 }
+/* addresses in a text column open as links: "[label](https://…)" shows the label, a bare address shows its site's name. Works on text that is already escaped. */
+const linkify = h => h.replace(/\[([^\]\n]{1,120})\]\((https?:\/\/[^\s()<>]+)\)|(https?:\/\/[^\s<>]+[^\s<>.,;:!?)])/g, (m, label, u1, u2) => { const u = u1 || u2; let host = ''; try{ host = new URL(u.replace(/&amp;/g, '&')).hostname.replace(/^www\./, ''); }catch(e){ return m; } return `<a href="${u}" target="_blank" rel="noopener">${label || host} ↗</a>`; });
 function tpl(t, d, n){
   return t.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (m, name) => {
     const fx = /^(letters|major|initials)\s*:\s*(.+)$/i.exec(name), f = fieldByName(d, fx ? fx[2] : name); if(!f) return m;
@@ -1156,7 +1167,7 @@ function tpl(t, d, n){
     if(fx) return f.kind === 'text' ? esc(({major: majorOf, letters: lettersOf, initials: initialsOf})[fx[1].toLowerCase()](v)) : '';
     if(f.kind === 'region') return f.map && v ? regionHtml(f, v, {d}) : '';
     if(f.kind === 'choices') return '';
-    return f.kind === 'image' ? (v ? `<img src="${esc(v)}" alt="">` : '') : esc(v).replace(/\n/g, '<br>');
+    return f.kind === 'image' ? (v ? `<img src="${esc(v)}" alt="">` : '') : linkify(esc(v)).replace(/\n/g, '<br>');
   });
 }
 function faceHtml(d, t, n, shown){
@@ -1368,7 +1379,7 @@ function vStudy(d){
     bottom = `<div class="grades">${GR.map(([g, l], i) => { if(!al.includes(g)) return ''; const o = schedule(s, g, cl, now, d.rollover);
       return `<button class="g g-${g}" data-act="grade" data-v="${g}">${l}<kbd>${i + 1}</kbd><small>${o.done ? 'retire' : o.iv ? 'again in ' + fmtDur(o.iv, cl.kinds[o.st]) : 'end of queue'}</small></button>`; }).join('')}</div>`;
     if(cf){ const z = zoneOf(d, cf, n), hn = st.hitId && notesOf(d).get(st.hitId);   // green: the right shape; the shape that was clicked instead is amber if it counted as close, red if not
-      cmap = `<div id="clickmap">${regionHtml(cf, n.f[cf.id], {d, zoom: 'study', view: st.rview, click: st.click, ring: z.ring, close: z.own, wrong: hn ? regOf(hn, cf.id) : [], wrongCls: st.res === 'close' ? 'pk' : 'pw'})}</div>`; }
+      cmap = `<div id="clickmap">${regionHtml(cf, n.f[cf.id], {d, nid: n.id, zoom: 'study', view: st.rview, click: st.click, ring: z.ring, close: z.own, wrong: hn ? regOf(hn, cf.id) : [], wrongCls: st.res === 'close' ? 'pk' : 'pw'})}</div>`; }
     if(mc) mid = optGrid();
     const V = mc ? {right: ['ok', 'Correct'], close: ['mid', 'Wrong, but close'], none: ['no', st.pick == null ? 'No answer' : 'Wrong']}
       : {right: ['ok', cf ? 'Inside the region' : 'Correct'], close: ['mid', st.hit ? 'Close: you clicked ' + esc(st.hit) : 'Close: ' + pct + '% of the map width away'],
