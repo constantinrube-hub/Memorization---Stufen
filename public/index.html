@@ -736,7 +736,9 @@ const rowLabel = (d, n) => d.fields.filter(x => x.kind === 'text').map(x => n.f[
 const VIEW = {study: {k: 1, x: 0, y: 0}, ed: {k: 1, x: 0, y: 0}, stat: {k: 1, x: 0, y: 0}, ov: {k: 1, x: 0, y: 0}}, ZMAX = 40;
 function clampView(v){
   v.k = Math.min(v.zm || ZMAX, Math.max(1, v.k || 1)); const vh = (v.r || 1) / v.k;   // share of the map's height the box shows
-  v.x = Math.min(1 - 1 / v.k, Math.max(0, v.x || 0)); v.y = vh >= 1 ? (1 - vh) / 2 : Math.min(1 - vh, Math.max(0, v.y || 0));   // a box taller than the map keeps the map in its middle
+  /* the map can be dragged until its edge reaches the middle of the box, as on Google Maps: any corner (Alaska, Hawaii)
+     can be brought to the middle, also when fully zoomed out. A box taller than the map keeps the map in its middle up and down. */
+  v.x = Math.min(1 - 0.5 / v.k, Math.max(-0.5 / v.k, v.x || 0)); v.y = vh > 1.001 ? (1 - vh) / 2 : Math.min(1 - 0.5 * vh, Math.max(-0.5 * vh, v.y || 0));
   return v;
 }
 /* after the answer is shown the study map has its own view, so looking around does not move the view the next card starts with */
@@ -819,6 +821,7 @@ const RCSS = `.rmap{position:relative;margin-inline:auto;max-width:100%;line-hei
 .gm .lb.cap{font-weight:700;fill:#202124}
 .gm .lb.gl{font-weight:700;fill:#5f6368;letter-spacing:.05em}
 .gm .glbs{pointer-events:none}
+.inb{fill:none;stroke:var(--muted);stroke-width:1;stroke-opacity:.6;vector-effect:non-scaling-stroke;pointer-events:none}
 .ovd{fill:var(--accent);stroke:#fff;stroke-width:1.3;vector-effect:non-scaling-stroke;cursor:default} .gm .ovd{fill:#d93025}
 .lb.ovl{font-family:Roboto,'Segoe UI',Arial,sans-serif;font-weight:600;fill:var(--ink);stroke:var(--sunk);stroke-linejoin:round;paint-order:stroke;text-anchor:middle;dominant-baseline:central;pointer-events:none}
 .gm .lb.ovl{fill:#202124;stroke:#fff}
@@ -2397,17 +2400,64 @@ function colChart(cols, o = {}){
       return `<div class="colw${c.mark ? ' mark' : ''}" data-tip="${esc(c.tip)}" tabindex="0" aria-label="${esc(c.tip.replace(/\n/g, ', '))}"><div class="colbar" style="height:${Hpx}px">${c.segs.filter(s => s.v).map(s => `<i class="${s.cls}" style="height:${Math.max(2, s.v / max * Hpx - 2).toFixed(1)}px"></i>`).join('')}</div><span class="xl">${c.mark || (i % step === 0 && !cols.slice(i + 1, i + step).some(x => x.mark)) ? esc(c.label) : ''}</span></div>`; }).join('')}</div></div>`;
 }
 const ANS = ['a0', 'a1', 'a2', 'a3', 'a4'];
+/* Corner boxes for the statistics map: rows lying wholly outside the map's start view and well apart from everything else
+   (Alaska, Hawaii, Puerto Rico on the US map) are drawn shrunk in a corner, and the map is framed on the rest, the way
+   printed US maps do it. Only for this drawn map; study and the overview keep true positions (the Google map lies under them). */
+const insetC = new Map();
+function insetLayout(d, f){
+  if(!f.home || f.map !== 'vec') return null;
+  const key = d.id + '/' + f.id, hk = [f.home.k, f.home.x, f.home.y].join(','), c = insetC.get(key); if(c && c.v === geoVer && c.hk === hk) return c.L;
+  const L = insetMake(d, f); insetC.set(key, {v: geoVer, hk, L}); return L;
+}
+function insetMake(d, f){
+  const ar = f.ar || 1, hb = {x0: f.home.x, y0: f.home.y, x1: f.home.x + 1 / f.home.k, y1: f.home.y + 1 / f.home.k};
+  const rows = sortedNotes(d).map(n => ({n, p: regOf(n, f.id)})).filter(r => r.p.length).map(r => Object.assign(r, {b: bboxOf(r.p)}));
+  const cut = (a, b, m = 0) => a.x0 - m <= b.x1 && b.x0 - m <= a.x1 && a.y0 - m / ar <= b.y1 && b.y0 - m / ar <= a.y1;   // m: a margin in widths of the map
+  const out = rows.filter(r => !cut(r.b, hb)), ins = rows.filter(r => cut(r.b, hb)); if(!out.length || !ins.length) return null;
+  const gs = [];   // far-away rows that touch each other form one box
+  for(const r of out){ const hit = gs.filter(g => cut(g.b, r.b, 0.01)); const g = {rows: [r], b: {...r.b}};
+    for(const h of hit){ g.rows.push(...h.rows); g.b = {x0: Math.min(g.b.x0, h.b.x0), y0: Math.min(g.b.y0, h.b.y0), x1: Math.max(g.b.x1, h.b.x1), y1: Math.max(g.b.y1, h.b.y1)}; gs.splice(gs.indexOf(h), 1); }
+    g.b = {x0: Math.min(g.b.x0, r.b.x0), y0: Math.min(g.b.y0, r.b.y0), x1: Math.max(g.b.x1, r.b.x1), y1: Math.max(g.b.y1, r.b.y1)}; gs.push(g); }
+  const keep = gs.filter(g => !ins.some(r => cut(r.b, g.b, 0.03))); if(!keep.length) return null;
+  const moved = new Set(keep.flatMap(g => g.rows.map(r => r.n.id))), main = rows.filter(r => !moved.has(r.n.id));
+  let B = main.reduce((a, r) => ({x0: Math.min(a.x0, r.b.x0), y0: Math.min(a.y0, r.b.y0), x1: Math.max(a.x1, r.b.x1), y1: Math.max(a.y1, r.b.y1)}), {x0: 1, y0: 1, x1: 0, y1: 0});
+  const px = (B.x1 - B.x0) * 0.03; B = {x0: B.x0 - px, x1: B.x1 + px, y0: B.y0 - px / ar, y1: B.y1 + px / ar};
+  /* sizes in the map's own units (x of 1000, y of 1000·ar); each box at most a quarter of the width and a third of the height, never enlarged */
+  const W = (B.x1 - B.x0) * 1000, H0 = (B.y1 - B.y0) * 1000 * ar, gap = W * 0.02;
+  const boxes = keep.sort((a, b) => a.b.x0 - b.b.x0).map(g => { const w = (g.b.x1 - g.b.x0) * 1000, h = (g.b.y1 - g.b.y0) * 1000 * ar, s = Math.min(1, W * 0.24 / w, H0 * 0.32 / h); return {g, s, w: w * s, h: h * s}; });
+  /* where the boxes go: the bottom-left corner unless the main map is in the way there; then the bottom-right; else below the map */
+  const grid = new Set(), G = 40; for(const r of main) for(const p of r.p) for(const [x, y] of p) grid.add(Math.floor((x - B.x0) / (B.x1 - B.x0) * G) + ',' + Math.floor((y - B.y0) / (B.y1 - B.y0) * G));
+  const rowW = boxes.reduce((a, b) => a + b.w + gap, gap), rowH = Math.max(...boxes.map(b => b.h)) + gap;
+  const busy = (x0, y0) => { let n = 0; for(let i = Math.floor(x0 / W * G); i <= Math.floor((x0 + rowW) / W * G); i++) for(let j = Math.floor(y0 / H0 * G); j <= Math.floor((y0 + rowH) / H0 * G); j++) if(grid.has(i + ',' + j)) n++; return n; };
+  const cand = [[0, H0 - rowH], [W - rowW, H0 - rowH]].map(([x, y]) => ({x, y, n: busy(x, y)})).sort((a, b) => a.n - b.n);
+  let at = cand[0], Hn = H0; if(at.n > 3){ at = {x: 0, y: H0}; Hn = H0 + rowH; }
+  let x = at.x + gap; for(const b of boxes){ b.tx = x; b.ty = at.y + rowH - b.h - gap / 2; x += b.w + gap; }
+  const box = new Map(); for(const b of boxes) for(const r of b.g.rows) box.set(r.n.id, b);
+  /* map coordinates (0..1 of the whole map) -> 0..1 of the new frame */
+  const toMain = ([x, y]) => [((x - B.x0) * 1000) / W, ((y - B.y0) * 1000 * ar) / Hn];
+  const toBox = (b, [x, y]) => [((x - b.g.b.x0) * 1000 * b.s + b.tx) / W, ((y - b.g.b.y0) * 1000 * ar * b.s + b.ty) / Hn];
+  const tp = (polys, b) => polys.map(p => { const q = p.map(pt => b ? toBox(b, pt) : toMain(pt)); if(p.hole) q.hole = true; return q; });
+  return {ar: Hn / W, boxes, polys: n => tp(regOf(n, f.id), box.get(n.id)),
+    line: pt => { const b = boxes.find(b => pt[0] >= b.g.b.x0 && pt[0] <= b.g.b.x1 && pt[1] >= b.g.b.y0 && pt[1] <= b.g.b.y1); return b ? toBox(b, pt) : toMain(pt); },
+    frames: boxes.map(b => { const q = gap * 0.3; return [(b.tx - q) / W, (b.ty - q) / Hn, (b.w + 2 * q) / W, (b.h + 2 * q) / Hn]; })};
+}
 /* how well each shape is known, against this map's own average: the mean answer (No idea 0 … No brainer 4) per row.
    Violet = every answer Easy or No brainer; green = above your average here (deeper = better); red = below it (deeper = worse). */
 function heatAvg(d, f, st){ let n = 0, sum = 0; for(const x of notesOf(d).values()){ const r = st.row.get(x.id); if(r && regOf(x, f.id).length){ n += r.n; sum += r.sum; } } return n ? sum / n : 0; }
 function heatHtml(d, f, st){
-  const H = 1000 * (f.ar || 1), hs = +H.toFixed(1), v = VIEW.stat, vec = f.map === 'vec', avg = heatAvg(d, f, st);
-  const shapes = sortedNotes(d).map(n => { const p = regOf(n, f.id), r = st.row.get(n.id); if(!p.length || !r) return ''; const mean = r.sum / r.n, top = r.g[3] + r.g[4] === r.n;
+  const IL = insetLayout(d, f), ar = IL ? IL.ar : f.ar || 1, H = 1000 * ar, hs = +H.toFixed(1), v = VIEW.stat, vec = f.map === 'vec', avg = heatAvg(d, f, st);
+  const shapes = sortedNotes(d).map(n => { const p0 = regOf(n, f.id), r = st.row.get(n.id); if(!p0.length || !r) return ''; const p = IL ? IL.polys(n) : p0, mean = r.sum / r.n, top = r.g[3] + r.g[4] === r.n;
     let cls, op; if(top){ cls = 'top'; op = 0.7; } else if(mean >= avg){ cls = 'ok'; op = 0.2 + 0.65 * Math.min(1, (mean - avg) / Math.max(0.5, 4 - avg)); } else { cls = ''; op = 0.2 + 0.65 * Math.min(1, (avg - mean) / Math.max(0.5, avg)); }
     const mix = [[r.g[0] + r.g[1], 'missed'], [r.g[2], 'hard'], [r.g[3] + r.g[4], 'easy or no brainer']].filter(x => x[0]).map(x => x[0] + ' ' + x[1]).join(', ');
     return `<path class="hm${cls ? ' ' + cls : ''}" fill-rule="evenodd" style="fill-opacity:${op.toFixed(2)}" d="${dOf(p, H)}" data-tip="${esc(rowLabel(d, n) + '\n' + pl(r.n, 'answer') + ': ' + mix + '\n' + (top ? 'always easy' : mean >= avg ? 'better than your average here' : 'worse than your average here'))}"/>`; }).join('');
+  let base;
+  if(!vec) base = `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`;
+  else if(!IL) base = `<rect class="sea" width="1000" height="${hs}"/>` + baseOf(d, f);
+  else { base = `<rect class="sea" width="1000" height="${hs}"/>` + (f.hide ? '' : sortedNotes(d).map(n => { const p = IL.polys(n); return p.length ? `<path class="pb" fill-rule="evenodd" d="${dOf(p, H)}"/>` : ''; }).join(''));
+    if(f.outline) base += `<path class="ol" d="${String(f.outline).split(';').map(l => { const q = l.trim().split(/\s+/).map(c => c.split(',').map(Number)).filter(c => c.length === 2 && c.every(isFinite)).map(IL.line); return q.length > 1 ? 'M' + q.map(([x, y]) => +(x * 1000).toFixed(2) + ' ' + +(y * H).toFixed(2)).join('L') : ''; }).join('')}"/>`;
+    base += IL.frames.map(([x, y, w, h]) => `<rect class="inb" x="${(x * 1000).toFixed(2)}" y="${(y * H).toFixed(2)}" width="${(w * 1000).toFixed(2)}" height="${(h * H).toFixed(2)}"/>`).join(''); }
   return `<div class="rmap${vec ? ' vec' : ''}" data-z="stat" data-h="${hs}" style="aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
-    (vec ? `<rect class="sea" width="1000" height="${hs}"/>` + baseOf(d, f) : `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`) + shapes + `</svg>` +
+    base + shapes + `</svg>` +
     `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button></div></div>`;
 }
 function vStats(d){
