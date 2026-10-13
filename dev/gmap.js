@@ -116,6 +116,10 @@ const FAKE=`(()=>{window.__g={maps:0,moves:0,cam:null,opts:null,type:null};
    const my=l=>Math.log(Math.tan(Math.PI/4+l*Math.PI/360));return {r,W:rm.clientWidth,H:rm.clientHeight,gh:parseFloat(g.style.height)*sc,cam:window.__g.cam,c,span:(my(t[1])-my(bt[1]))*256*2**window.__g.cam.zoom*sc/(2*Math.PI)};});
  ok(m.r>1&&Math.abs(m.gh-m.H)<0.6&&Math.abs(m.cam.center.lat-m.c[1])<1e-6,'phone: in the tall box the Google map fills the box and is centred on it');
  ok(Math.abs(m.span-m.H)<1,'phone: north to south it matches the shapes too ('+m.span.toFixed(1)+' px in a '+m.H+' px box)');
+ // the overview map in the Cards tab takes over the same Google map, with Google's own names off so the deck's names are readable
+ await q.evaluate(()=>{window.__stufen.S.study.on=false;document.querySelector('[data-act="tab"][data-v="cards"]').click();});await q.click('#ov-open');await q.waitForSelector('#ovmap .rmap.gg .gbg');
+ const ov=await q.evaluate(()=>({maps:window.__g.maps,bare:JSON.stringify(window.__g.opts.styles).includes('labels'),dots:document.querySelectorAll('#ovmap circle.ovd').length,names:[...document.querySelectorAll('#ovmap text.ovl')].filter(t=>t.style.display!=='none').length}));
+ ok(ov.maps===1&&ov.bare&&ov.dots===12&&ov.names>0,'phone: overview map on the one Google map, Google names off, 12 dots, '+ov.names+' names shown');
  ok(qe.length===0,'phone: no page errors '+qe.join(' | '));
  await b.close();
 })();

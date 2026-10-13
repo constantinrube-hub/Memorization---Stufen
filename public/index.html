@@ -6,7 +6,7 @@
 :root{
   --bg:#f2f5f4; --surface:#ffffff; --sunk:#e7ecea; --ink:#16201e; --muted:#5a6966; --line:#d3dad8;
   --accent:#0c6b6b; --accent-ink:#ffffff; --accent-soft:#dcefee;
-  --wrong:#b23b2a; --hard:#96650a; --good:#27733a; --easy:#2a5fb0;
+  --wrong:#b23b2a; --hard:#96650a; --good:#27733a; --easy:#2a5fb0; --know:#6d4fd6;
   --a0:#b23b2a; --a1:#e8a08f; --a2:#9ec5f4; --a3:#3987e5; --a4:#184f95;
   --f-display:'Bricolage Grotesque','Avenir Next','Segoe UI',sans-serif;
   --f-body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
@@ -15,12 +15,12 @@
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0f1514; --surface:#182120; --sunk:#111918; --ink:#e4ebe9; --muted:#93a29f; --line:#2b3836;
   --accent:#56c2ba; --accent-ink:#06211f; --accent-soft:#17373a;
-  --wrong:#ef8272; --hard:#e0ad4a; --good:#6fca84; --easy:#7fb0f2;
+  --wrong:#ef8272; --hard:#e0ad4a; --good:#6fca84; --easy:#7fb0f2; --know:#a690f8;
   --a0:#f08a7a; --a1:#96524a; --a2:#1c5cab; --a3:#3987e5; --a4:#b7d3f6; color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0f1514; --surface:#182120; --sunk:#111918; --ink:#e4ebe9; --muted:#93a29f; --line:#2b3836;
   --accent:#56c2ba; --accent-ink:#06211f; --accent-soft:#17373a;
-  --wrong:#ef8272; --hard:#e0ad4a; --good:#6fca84; --easy:#7fb0f2;
+  --wrong:#ef8272; --hard:#e0ad4a; --good:#6fca84; --easy:#7fb0f2; --know:#a690f8;
   --a0:#f08a7a; --a1:#96524a; --a2:#1c5cab; --a3:#3987e5; --a4:#b7d3f6; color-scheme:dark }
 
 *{box-sizing:border-box}
@@ -34,7 +34,11 @@ body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-body)}
 #status.err{color:var(--wrong)}
 .shell{display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px;margin-top:20px}
 #side{display:flex;flex-direction:column;gap:6px;align-content:start}
-.side-h{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.side-h{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 2px;display:flex;align-items:baseline;gap:8px}
+.side-h .legend{margin:0 0 0 auto;text-transform:none;letter-spacing:0}
+.sacts{display:grid;grid-template-columns:1fr 1fr;gap:6px} .sacts .btn{justify-content:center;padding-inline:6px;text-align:center;min-width:0}
+/* on a wide screen the deck list scrolls on its own beside the page, so picking a deck low in the list leaves it in view */
+@media (min-width:821px){ #side{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin} .shell{align-items:start} }
 .deck{display:flex;align-items:center;gap:6px;text-align:left;padding:8px 10px;border:1px solid transparent;border-radius:6px;background:none;color:var(--ink);font:inherit;cursor:pointer}
 .deck:hover{background:var(--sunk)}
 .deck.cur{background:var(--surface);border-color:var(--line);font-weight:600}
@@ -42,7 +46,7 @@ body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-body)}
 .b{font:500 11px var(--f-mono);padding:1px 6px;border-radius:9px;font-variant-numeric:tabular-nums}
 .b.due{background:var(--accent);color:var(--accent-ink)}
 .b.new{background:var(--sunk);color:var(--muted)}
-.legend{font-size:12px;color:var(--muted);margin-top:4px}
+.legend{font-size:12px;color:var(--muted)}
 main{min-width:0;display:flex;flex-direction:column;gap:16px}
 .head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 #deck-name{flex:1;min-width:180px;font:700 26px/1.2 var(--f-display);border:0;border-bottom:1px solid transparent;background:none;color:var(--ink);padding:2px 0}
@@ -140,8 +144,9 @@ kbd{font:400 11px var(--f-mono);border:1px solid currentColor;border-radius:4px;
 .sbar{display:flex;gap:2px;height:16px} .sbar i{display:block;min-width:2px} .sbar i:first-child{border-radius:3px 0 0 3px} .sbar i:last-child{border-radius:0 3px 3px 0}
 .sv{font:400 12px var(--f-mono);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums} .sv b{color:var(--ink);font-weight:500}
 .sl{overflow-wrap:anywhere}
-.hm{fill:var(--wrong);stroke:var(--wrong);stroke-width:.6;stroke-opacity:.5}
-.ramp{display:inline-flex;gap:2px} .ramp i{display:block;width:22px;height:10px;background:var(--wrong);border-radius:2px}
+.hm{fill:var(--wrong);stroke:var(--wrong);stroke-width:.6;stroke-opacity:.5} .hm.ok{fill:var(--good);stroke:var(--good)} .hm.top{fill:var(--know);stroke:var(--know)}
+.ramp{display:inline-flex;gap:2px} .ramp i{display:block;width:22px;height:10px;background:var(--wrong);border-radius:2px} .ramp.ok i{background:var(--good)} .ramp.top i{background:var(--know)}
+.hmkey{gap:6px 14px} .hmkey>span{display:inline-flex;align-items:center;gap:6px}
 #statmap .rmap{--mh:62vh}
 .tip{position:fixed;z-index:30;pointer-events:none;background:var(--ink);color:var(--bg);font:400 12px/1.45 var(--f-body);padding:7px 9px;border-radius:6px;white-space:pre-line;max-width:260px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 .tip::first-line{font-weight:600}
@@ -251,6 +256,9 @@ tr.fold .foldbtn:hover{color:var(--accent)} table.home td.ind1{padding-left:28px
 #clickmap.live .nobd .pb:hover{fill:var(--surface)} #clickmap.live .gm.nobd .pb:hover{fill:var(--g-land)}
 .ctools{display:contents} .morebtn{display:none}
 .btn.on{color:var(--hard);font-weight:600}
+.sprow{display:grid;grid-template-columns:minmax(100px,1fr) auto minmax(0,1.6fr);gap:10px;align-items:center} .sprow input{min-width:0;width:100%}
+@media (max-width:820px){ .sprow{grid-template-columns:1fr auto} .sprow input{grid-column:1/-1} }
+.seg{display:inline-flex} .seg .btn{border-radius:0} .seg .btn:first-child{border-radius:6px 0 0 6px} .seg .btn:last-child{border-radius:0 6px 6px 0;margin-left:-1px} .seg .btn.on{color:var(--accent);background:var(--accent-soft)}
 .glinks{justify-content:center} .glinks a{text-decoration:none}
 .mk{font-weight:600;margin-left:1px} .mk.f{color:var(--hard)}
 .sheet textarea.ce{font:inherit;min-height:0}
@@ -271,7 +279,7 @@ tr.fold .foldbtn:hover{color:var(--accent)} table.home td.ind1{padding-left:28px
   .grades .g small,.grades .g kbd,.brow kbd{display:none}
   .morebtn{display:inline-flex} .ctools{display:none} .ctools.open{display:flex;width:100%;gap:6px;flex-wrap:wrap}
   #side{flex-direction:row;flex-wrap:wrap;align-items:center}
-  .side-h,.legend{width:100%}
+  .side-h,.sacts{width:100%}
   .tgrid{grid-template-columns:minmax(0,1fr)}
   #deck-name{font-size:22px}
 }
@@ -725,7 +733,7 @@ function zoneOf(d, f, n, o){
 const rowLabel = (d, n) => d.fields.filter(x => x.kind === 'text').map(x => n.f[x.id]).filter(Boolean)[0] || 'this row';
 
 /* ---------- zoom and pan: a view is {k: zoom factor, x, y: top-left corner as fractions of the map} ---------- */
-const VIEW = {study: {k: 1, x: 0, y: 0}, ed: {k: 1, x: 0, y: 0}, stat: {k: 1, x: 0, y: 0}}, ZMAX = 40;
+const VIEW = {study: {k: 1, x: 0, y: 0}, ed: {k: 1, x: 0, y: 0}, stat: {k: 1, x: 0, y: 0}, ov: {k: 1, x: 0, y: 0}}, ZMAX = 40;
 function clampView(v){
   v.k = Math.min(v.zm || ZMAX, Math.max(1, v.k || 1)); const vh = (v.r || 1) / v.k;   // share of the map's height the box shows
   v.x = Math.min(1 - 1 / v.k, Math.max(0, v.x || 0)); v.y = vh >= 1 ? (1 - vh) / 2 : Math.min(1 - vh, Math.max(0, v.y || 0));   // a box taller than the map keeps the map in its middle
@@ -762,10 +770,10 @@ function fitMarks(rm){   // markers keep their size on screen whatever the zoom
   $$('path[data-rk]', svg).forEach(p => { p.style.display = +p.dataset.rk <= z - 2 ? '' : 'none'; });
   $$('text.lb', svg).forEach(t => {
     const rk = +t.dataset.rk, fs = t.classList.contains('cap') ? 13.5 : rk <= 3 ? 12.5 : 11.5; let show = rk <= z - 1.6;
-    if(show){ const x = (+t.getAttribute('x') - vb.x) / u, y = (+t.getAttribute('y') - vb.y) / u, hw = t.textContent.length * fs * 0.29 + 4, hh = fs * 0.75;
+    if(show){ const x = (+t.getAttribute('x') - vb.x) / u, y = (+t.getAttribute('y') - vb.y) / u + (+t.dataset.oy || 0), hw = t.textContent.length * fs * 0.29 + 4, hh = fs * 0.75;
       if(x < hw || y < hh || x > w - hw || y > h - hh || kept.some(b => Math.abs(b.x - x) < b.hw + hw && Math.abs(b.y - y) < b.hh + hh)) show = false; else kept.push({x, y, hw, hh}); }
     t.style.display = show ? '' : 'none';
-    if(show){ t.setAttribute('font-size', (fs * u).toFixed(3)); t.setAttribute('stroke-width', (3 * u).toFixed(3)); }
+    if(show){ t.setAttribute('font-size', (fs * u).toFixed(3)); t.setAttribute('stroke-width', (3 * u).toFixed(3)); if(t.dataset.oy) t.setAttribute('dy', (+t.dataset.oy * u).toFixed(3)); }
   });
 }
 function applyView(rm, v){
@@ -811,6 +819,10 @@ const RCSS = `.rmap{position:relative;margin-inline:auto;max-width:100%;line-hei
 .gm .lb.cap{font-weight:700;fill:#202124}
 .gm .lb.gl{font-weight:700;fill:#5f6368;letter-spacing:.05em}
 .gm .glbs{pointer-events:none}
+.ovd{fill:var(--accent);stroke:#fff;stroke-width:1.3;vector-effect:non-scaling-stroke;cursor:default} .gm .ovd{fill:#d93025}
+.lb.ovl{font-family:Roboto,'Segoe UI',Arial,sans-serif;font-weight:600;fill:var(--ink);stroke:var(--sunk);stroke-linejoin:round;paint-order:stroke;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.gm .lb.ovl{fill:#202124;stroke:#fff}
+.rmap.nolab .ovl{display:none}
 .cv{fill:none;stroke:#b0006d;stroke-opacity:.6;stroke-width:3.2;stroke-linecap:round;pointer-events:none}
 .gm.nolab .lbs{display:none}
 .gm .zc button{background:#fff;color:#3c4043;border-color:#dadce0;box-shadow:0 1px 3px rgba(60,64,67,.3)}
@@ -886,7 +898,7 @@ const G = {key: '', state: 0, map: null, div: null, off: false, type: 'roadmap',
 try{ G.off = localStorage.getItem('stufen-gmap') === '0'; G.type = localStorage.getItem('stufen-gtype') === 'hybrid' ? 'hybrid' : 'roadmap'; }catch(e){}
 const gWanted = () => !!G.key && G.state >= 0 && !G.off;
 /* which map box holds the Google map: the region editor while it is open, otherwise the study map */
-const gFor = (f, zoom) => gWanted() && isGm(f) && !!f.geo && !!f.geo.m && (zoom === 'ed' || (zoom === 'study' && !S.ed));
+const gFor = (f, zoom) => gWanted() && isGm(f) && !!f.geo && !!f.geo.m && (zoom === 'ed' || ((zoom === 'study' || zoom === 'ov') && !S.ed));
 /* how far in a map may be zoomed: to about street level */
 const gZm = f => Math.max(ZMAX, 256 * 2 ** 18 / (1000 * 2 * Math.PI * f.geo.s));
 const G_QUIET = [{featureType: 'poi', stylers: [{visibility: 'off'}]}, {featureType: 'transit', stylers: [{visibility: 'off'}]}];
@@ -918,7 +930,7 @@ function gLoad(){
 function gLevel(f, v, W){ const zf = Math.log2(W * v.k * 2 * Math.PI * f.geo.s / 256), z = Math.max(1, Math.min(21, Math.round(zf))); return {zf, z, sc: 2 ** (zf - z)}; }
 /* put the Google map into the map box that is on screen and move it to that box's view */
 function gSync(){
-  const rm = $('#edmap .rmap.gg') || $('#clickmap .rmap.gg');
+  const rm = $('#edmap .rmap.gg') || $('#clickmap .rmap.gg') || $('#ovmap .rmap.gg');
   if(rm && G.state === 0) gLoad();
   if(G.state !== 2) return;
   if(!rm){ if(G.div.parentNode) G.div.remove(); return; }
@@ -930,7 +942,7 @@ function gSync(){
   if(G.div.style.width !== w) G.div.style.width = w; if(G.div.style.height !== h) G.div.style.height = h;
   G.div.style.transform = 'scale(' + L.sc.toFixed(5) + ')';
   G.map.moveCamera({center: {lat, lng: lon}, zoom: L.z});
-  const st = rm.classList.contains('nolab') ? 'bare' : 'quiet';   // names hidden until the answer, or switched off with the Aa button
+  const st = rm.classList.contains('nolab') || rm.dataset.z === 'ov' ? 'bare' : 'quiet';   // the overview writes the deck's own names, so Google's stay off there   // names hidden until the answer, or switched off with the Aa button
   if(G.styles !== st){ G.styles = st; G.map.setOptions({styles: st === 'bare' ? G_BARE : G_QUIET}); }
   if(G.map.getMapTypeId() !== G.type) G.map.setMapTypeId(G.type);
 }
@@ -976,14 +988,14 @@ function regionHtml(f, value, o = {}){
   const dot = (cls, x, y, r) => `<circle class="${cls}" cx="${(x * 1000).toFixed(2)}" cy="${(y * H).toFixed(2)}" r="${(r * u).toFixed(2)}" data-r="${r}"/>`;
   const path = (cls, ps) => ps.length ? `<path class="${cls}" fill-rule="evenodd" d="${dOf(ps, H)}"/>` : '';
   const gm = isGm(f), cx = (gm && !gg && ctxOf(f)) || NOCTX, lab = gm && f.geo && o.zoom;
-  return `<div class="rmap${vec ? ' vec' : ''}${gm ? ' gm' : ''}${gg ? ' gg' + (G.type === 'hybrid' ? ' sat' : '') : ''}${f.nobd ? ' nobd' : ''}${lab && (!labelsOn || (f.nolab && o.quiz)) ? ' nolab' : ''}"${lab && f.nolab && o.quiz ? ' data-q="1"' : ''}${o.zoom ? ` data-z="${o.zoom}" data-fid="${f.id}"` : ''}${lab ? ` data-w="${(f.geo.b[2] - f.geo.b[0]).toFixed(4)}"` : ''}${o.zoom === 'study' && f.home ? ` data-home="${[f.home.k, f.home.x, f.home.y].join(',')}"` : ''} data-h="${hs}" style="${br > 1 ? `aspect-ratio:1000/${(hs * br).toFixed(1)};width:100%` : `aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))`}"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
+  return `<div class="rmap${vec ? ' vec' : ''}${gm ? ' gm' : ''}${gg ? ' gg' + (G.type === 'hybrid' ? ' sat' : '') : ''}${f.nobd ? ' nobd' : ''}${(lab || o.ov) && (!labelsOn || (f.nolab && o.quiz)) ? ' nolab' : ''}"${lab && f.nolab && o.quiz ? ' data-q="1"' : ''}${o.zoom ? ` data-z="${o.zoom}" data-fid="${f.id}"` : ''}${lab || o.ov ? ` data-w="${f.geo ? (f.geo.b[2] - f.geo.b[0]).toFixed(4) : 1}"` : ''}${o.zoom === 'study' && f.home ? ` data-home="${[f.home.k, f.home.x, f.home.y].join(',')}"` : ''} data-h="${hs}" style="${br > 1 ? `aspect-ratio:1000/${(hs * br).toFixed(1)};width:100%` : `aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))`}"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
     (vec ? (gg ? '' : `<rect class="sea" width="1000" height="${hs}"/>`) + cx.under + (o.d ? baseOf(o.d, f) : '') + cx.over : `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`) +
     path('pg', o.ghost || []) +
     (o.ring && polys.length ? `<mask id="${mid}" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="${hs}"><rect width="1000" height="${hs}" fill="#fff"/><path fill="#000" fill-rule="evenodd" d="${dOf(polys, H)}"/></mask><g mask="url(#${mid})"><path class="pr" style="vector-effect:none" d="${dOf(polys, H)}" stroke-width="${(o.ring * 2000).toFixed(1)}"/></g>` : '') +
     path('pk', o.close || []) + path(o.wrongCls || 'pw', o.wrong || []) + path('pp', polys) + (o.extra ? o.extra(pts, dot) : '') +
     (o.zoom && vec && f.cov && f.cov.show && (f.cov.show === 2 || !o.quiz) ? covPath(f, o.nid) : '') +
-    (lab && f.lab && o.d && (!f.lab.after || !o.quiz) ? groupLabels(o.d, f) : '') + (lab ? cx.labels : '') + (o.click ? dot('pc', o.click.x, o.click.y, 6.5) : '') + `</svg>` +
-    (o.zoom ? `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button>${lab && !(f.nolab && o.quiz) ? `<button data-act="labels" class="${labelsOn ? 'on' : ''}" title="City names on or off" aria-label="City names on or off" style="font-size:12px">Aa</button>` : ''}${vec ? `<button data-act="borders" class="${f.nobd ? '' : 'on'}" title="Borders on or off" aria-label="Borders on or off" style="font-size:14px">▦</button>` : ''}${gg ? `<button data-act="gType" class="${G.type === 'hybrid' ? 'on' : ''}" title="Satellite or standard map" aria-label="Satellite or standard map" style="font-size:14px">◐</button>` : ''}${vec && f.cov ? `<button data-act="covTog" class="${f.cov.show ? 'on' : ''}" title="${['Coverage dots: off', 'Coverage dots: after the answer', 'Coverage dots: always'][f.cov.show || 0]}. Click to change." aria-label="Coverage dots" style="font-size:13px">${f.cov.show === 2 ? '⁙' : '⁖'}</button>` : ''}</div>` : '') + `</div>`;
+    (lab && f.lab && o.d && (!f.lab.after || !o.quiz) ? groupLabels(o.d, f) : '') + (lab && !o.ov ? cx.labels : '') + (o.click ? dot('pc', o.click.x, o.click.y, 6.5) : '') + `</svg>` +
+    (o.zoom ? `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button>${(lab && !(f.nolab && o.quiz)) || o.ov ? `<button data-act="labels" class="${labelsOn ? 'on' : ''}" title="City names on or off" aria-label="City names on or off" style="font-size:12px">Aa</button>` : ''}${vec ? `<button data-act="borders" class="${f.nobd ? '' : 'on'}" title="Borders on or off" aria-label="Borders on or off" style="font-size:14px">▦</button>` : ''}${gg ? `<button data-act="gType" class="${G.type === 'hybrid' ? 'on' : ''}" title="Satellite or standard map" aria-label="Satellite or standard map" style="font-size:14px">◐</button>` : ''}${vec && f.cov ? `<button data-act="covTog" class="${f.cov.show ? 'on' : ''}" title="${['Coverage dots: off', 'Coverage dots: after the answer', 'Coverage dots: always'][f.cov.show || 0]}. Click to change." aria-label="Coverage dots" style="font-size:13px">${f.cov.show === 2 ? '⁙' : '⁖'}</button>` : ''}</div>` : '') + `</div>`;
 }
 /* names of a parent unit (state, province) drawn once per group of rows, in the middle of the group's area */
 function groupLabels(d, f){
@@ -1221,6 +1233,10 @@ try{ treeTog = new Set(JSON.parse(localStorage.getItem('stufen-tree') || '[]'));
 const treeOpen = key => treeTog.has(key) !== !key.includes('/');   // continents start open, countries start closed
 let sideShut = new Set();
 try{ sideShut = new Set(JSON.parse(localStorage.getItem('stufen-shut') || '[]')); }catch(e){}
+// after picking a deck (or Overview, Settings) low in a long list, bring the page back up to its title
+function toTop(){ const m = $('#main'); if(!m || m.getBoundingClientRect().top >= 0) return;
+  const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  try{ window.scrollTo({top: 0, behavior: calm ? 'auto' : 'smooth'}); }catch(e){ window.scrollTo(0, 0); } }
 function renderSide(){
   const ds = allDecks(), q = (S.sideQ || '').trim().toLowerCase(), shown = q ? ds.filter(d => d.name.toLowerCase().includes(q)) : ds;
   $('#side').classList.toggle('open', !!S.sideOpen || !!q); const G = (S.meta.groups || []).filter(g => g.decks.some(id => S.decks[id])), cnt = new Map(), cOf = d => { let c = cnt.get(d.id); if(!c) cnt.set(d.id, c = counts(d)); return c; };
@@ -1236,8 +1252,10 @@ function renderSide(){
   else if(G.length && !q){ const inG = new Set(G.flatMap(g => g.decks)), rest = ds.filter(d => !inG.has(d.id));
     listHtml = G.map(g => sect(g.id, g.name, ds.filter(d => g.decks.includes(d.id)))).join('') + (rest.length ? sect('~rest', 'Other decks', rest) : ''); }
   else listHtml = shown.map(dbtn).join('');
-  $('#side').innerHTML = (ds.length > 1 ? `<button class="btn ghost${S.view === 'home' ? ' on' : ''}" data-act="home" id="open-home">Overview</button>` : '') + `<div class="side-h">Decks</div>` + (ds.length > 6 ? `<input id="deck-q" type="search" placeholder="Find a deck" aria-label="Find a deck" value="${esc(S.sideQ || '')}">` : '') + `<div class="dlist">` + (q && !shown.length ? `<span class="muted small">No deck matches.</span>` : '') + listHtml + `</div>` + (ds.length > 1 && !q ? `<button class="btn ghost dtog" data-act="sideTog" id="side-tog">${S.sideOpen ? 'Hide other decks' : 'All decks (' + ds.length + ')'}</button>` : '') +
-    `<button class="btn" data-act="newDeck" id="new-deck">+ New deck</button><button class="btn" data-act="impOpen" id="imp-open" title="Anki package, Excel or CSV file, GeoJSON map, or a Stufen backup">Import or restore…</button>${downloads && ds.length ? `<button class="btn ghost" data-act="exportAll" id="exp-all" title="Save every deck with its rows and progress in one file">Back up all decks</button>` : ''}<button class="btn ghost${S.view === 'settings' ? ' on' : ''}" data-act="settings" id="open-settings">Settings</button>` + (ds.length ? `<div class="legend"><span class="b due">due</span> <span class="b new">new</span></div>` : '');
+  // the actions sit above the list: with ~60 decks the list is long, and these should not need a scroll to reach
+  $('#side').innerHTML = (ds.length > 1 ? `<button class="btn ghost${S.view === 'home' ? ' on' : ''}" data-act="home" id="open-home">Overview</button>` : '') +
+    `<div class="sacts"><button class="btn" data-act="newDeck" id="new-deck">+ New deck</button><button class="btn" data-act="impOpen" id="imp-open" title="Import or restore: an Anki package, Excel or CSV file, GeoJSON map, or a Stufen backup">Import…</button>${downloads && ds.length ? `<button class="btn ghost" data-act="exportAll" id="exp-all" title="Back up all decks: every deck with its rows and progress in one file">Back up all</button>` : ''}<button class="btn ghost${S.view === 'settings' ? ' on' : ''}" data-act="settings" id="open-settings">Settings</button></div>` +
+    `<div class="side-h"><span>Decks</span>${ds.length ? `<span class="legend"><span class="b due">due</span> <span class="b new">new</span></span>` : ''}</div>` + (ds.length > 6 ? `<input id="deck-q" type="search" placeholder="Find a deck" aria-label="Find a deck" value="${esc(S.sideQ || '')}">` : '') + `<div class="dlist">` + (q && !shown.length ? `<span class="muted small">No deck matches.</span>` : '') + listHtml + `</div>` + (ds.length > 1 && !q ? `<button class="btn ghost dtog" data-act="sideTog" id="side-tog">${S.sideOpen ? 'Hide other decks' : 'All decks (' + ds.length + ')'}</button>` : '');
 }
 function render(){
   setStatus(); renderSide();
@@ -1257,7 +1275,7 @@ function render(){
     after(d); return; }
   const tabs = [['study', 'Study'], ['cards', 'Cards'], ['types', 'Card types'], ['schedule', 'Schedule'], ['stats', 'Statistics']];
   m.innerHTML = note + remindHtml() + `<div class="head"><input id="deck-name" aria-label="Deck name" value="${esc(d.name)}">
-    ${Object.keys(S.decks).length > 1 ? `<button class="btn ghost" data-act="mergeOpen">Merge decks…</button>` : ''}${downloads ? `<button class="btn ghost" data-act="export">Back up this deck</button>` : ''}${confirmBtn('delDeck', d.id, 'Delete deck')}</div>
+    ${Object.keys(S.decks).length > 1 ? `<button class="btn ghost" data-act="mergeOpen">Merge decks…</button>` : ''}${notesOf(d).size ? `<button class="btn ghost" data-act="splitOpen" id="split-open" title="Turn clusters of this deck into decks of their own">Split deck…</button>` : ''}${downloads ? `<button class="btn ghost" data-act="export">Back up this deck</button>` : ''}${confirmBtn('delDeck', d.id, 'Delete deck')}</div>
     <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab${S.tab === k ? ' on' : ''}" role="tab" data-act="tab" data-v="${k}">${l}</button>`).join('')}</div>
     <section id="view">${({study: vStudy, cards: vCards, types: vTypes, schedule: vSchedule, stats: vStats})[S.tab](d)}</section>`;
   after(d);
@@ -1562,13 +1580,31 @@ function rowHtml(d, n, i){
     `<td>${d.clusters.length > 1 ? `<select data-ncl aria-label="Cluster">${d.clusters.map(c => `<option value="${c.id}"${(n ? clusterOf(d, n).id : (S.cards.cluster || d.clusters[0].id)) === c.id ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : esc(d.clusters[0].name)}</td>
     <td class="prog" title="Stage per card type">${n ? progCell(d, n) : ''}</td></tr>`;
 }
+/* ---------- overview map (Cards tab): every row of the deck as a dot with its name, to get one's bearings before studying ---------- */
+const ovFields = d => d.fields.filter(f => f.kind === 'region' && f.map && sortedNotes(d).some(n => n.f[f.id]));
+function ovHtml(d){
+  const c = S.cards, fs = ovFields(d), f = fs.find(x => x.id === c.ovf) || fs[0]; if(!f) return '';
+  const list = visibleNotes(d), tf = d.fields.filter(x => x.kind === 'text'), pts = [];
+  for(const n of list){ const p = centroidOf(regOf(n, f.id)); if(p) pts.push({n, p}); }
+  // dots first, then the names on top, in deck order: where names would overlap, the earlier rows (the biggest cities) win
+  const extra = (P, dot) => pts.map(({n, p}) => { const tip = tf.map(x => n.f[x.id]).filter(Boolean).slice(0, 4).map(v => String(v).replace(/<[^>]*>/g, '')).join(' · ');
+      return dot('ovd', p[0], p[1], 4.5).replace('/>', ` data-tip="${esc(tip)}"/>`); }).join('') +
+    `<g class="ovls">${pts.map(({n, p}) => `<text class="lb ovl" x="${(p[0] * 1000).toFixed(2)}" y="${(p[1] * 1000 * (f.ar || 1)).toFixed(2)}" data-rk="-9" data-oy="-13" style="display:none">${esc(String(rowLabel(d, n)).replace(/<[^>]*>/g, ''))}</text>`).join('')}</g>`;
+  return `<div class="row">${fs.length > 1 ? `<label class="inline">Map <select id="ov-f">${fs.map(x => `<option value="${x.id}"${x.id === f.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
+      <span class="muted small">${pl(pts.length, 'place')}${list.length < notesOf(d).size ? ' (search or cluster filter applied)' : ''}. Zoom in for more names; hover a dot for its row. Aa switches the names off to test yourself.</span></div>
+    <div id="ovmap">${regionHtml(f, '', {zoom: 'ov', ov: true, d, extra})}</div>`;
+}
 function vCards(d){
   const c = S.cards, list = visibleNotes(d), pages = Math.max(1, Math.ceil(list.length / PAGE));
   if(c.page >= pages) c.page = pages - 1;
   const slice = list.slice(c.page * PAGE, (c.page + 1) * PAGE), nSel = c.sel.size;
   const clOpts = d.clusters.map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+  const ovOk = ovFields(d).length, ovOn = ovOk && c.view === 'map';
+  const sw = ovOk ? `<div class="seg" role="group" aria-label="Show rows as"><button class="btn${ovOn ? '' : ' on'}" data-act="cardsView" data-v="table" aria-pressed="${!ovOn}">Table</button><button class="btn${ovOn ? ' on' : ''}" data-act="cardsView" data-v="map" id="ov-open" aria-pressed="${!!ovOn}">Overview map</button></div>` : '';
+  if(ovOn) return `<div class="row">${sw}<input id="cards-q" placeholder="Search" value="${esc(c.q)}" aria-label="Search rows">
+    <select id="cards-cl" aria-label="Filter by cluster"><option value="">All clusters</option>${d.clusters.map(cl => `<option value="${cl.id}"${c.cluster === cl.id ? ' selected' : ''}>${esc(cl.name)}</option>`).join('')}</select></div>${ovHtml(d)}`;
   return `<p class="muted small">One row is one fact. Each row becomes one card per card type (${d.types.length} now). Paste a block from a spreadsheet into any cell to fill many rows at once; press Enter to move down.</p>
-  <div class="row"><input id="cards-q" placeholder="Search" value="${esc(c.q)}" aria-label="Search rows">
+  <div class="row">${sw}<input id="cards-q" placeholder="Search" value="${esc(c.q)}" aria-label="Search rows">
     <select id="cards-cl" aria-label="Filter by cluster"><option value="">All clusters</option>${d.clusters.map(cl => `<option value="${cl.id}"${c.cluster === cl.id ? ' selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
     <select id="cards-mk" aria-label="Filter by mark">${[['', 'All rows'], ['f', 'Flagged'], ['s', 'Suspended'], ['b', 'Buried today']].map(([v, l]) => `<option value="${v}"${(c.mark || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
     <span class="grow"></span><button class="btn" data-act="addField" data-v="text">+ Text column</button><button class="btn" data-act="addField" data-v="image">+ Image column</button><button class="btn" data-act="addField" data-v="region">+ Map column</button><button class="btn" data-act="geoOpen">+ GeoJSON map</button><button class="btn" data-act="addField" data-v="choices">+ Options column</button><button class="btn" data-act="toggleImp">${c.imp ? 'Close import' : 'Import…'}</button></div>
@@ -1754,13 +1790,14 @@ function renderImp(){
   else if(I.step === 'geo') body = geoBody(I);
   else if(I.step === 'restore') body = restoreBody(I);
   else if(I.step === 'merge') body = mergeBody(I);
+  else if(I.step === 'split') body = splitBody(I);
   else body = `<p class="muted small">${I.kind === 'anki' ? 'Each Anki deck becomes a deck here, with its fields as columns and its card templates as card types. Where one Anki deck mixes note types, each note type gets its own deck.' : 'Each sheet becomes a new deck, with its columns as the deck’s columns.'}</p>
     <div class="panel">${I.items.map((it, i) => `<label class="inline"><input type="checkbox" data-impi="${i}" id="imp-it-${i}"${it.on ? ' checked' : ''}> <span class="grow" style="color:var(--ink)">${esc(it.name)}</span><span class="mono small">${it.sub}</span></label>`).join('')}</div>
     ${I.kind === 'anki' ? chk('imp-keep', I.keep, 'Carry over review progress: a reviewed card starts on the stage closest to its Anki interval and keeps its due date') + (I.items.some(it => it.g.images) ? chk('imp-images', I.images, 'Import images') : '')
       : chk('imp-header', I.header, 'First row holds the column names')}
     <div class="row"><span class="grow"></span><button class="btn ghost" data-act="impClose">Cancel</button><button class="btn pri" data-act="impRun">Import</button></div>`;
   m.hidden = false;
-  m.innerHTML = `<div class="sheet" role="dialog" aria-label="Import" style="max-width:680px"><h2>${I.kind === 'merge' ? 'Merge decks' : (I.kind === 'restore' ? 'Restore from ' : 'Import ') + esc(I.file)}</h2>${body}</div>`;
+  m.innerHTML = `<div class="sheet" role="dialog" aria-label="Import" style="max-width:680px"><h2>${I.kind === 'merge' ? 'Merge decks' : I.kind === 'split' ? 'Split ' + esc((S.decks[I.from] || {}).name || 'deck') : (I.kind === 'restore' ? 'Restore from ' : 'Import ') + esc(I.file)}</h2>${body}</div>`;
 }
 const pl = (n, w, many) => n + ' ' + (n === 1 ? w : many || w + 's');
 async function impStart(file){
@@ -1781,6 +1818,7 @@ async function impRun(){
   if(S.imp.kind === 'geo') return geoRun();
   if(S.imp.kind === 'restore') return restoreRun();
   if(S.imp.kind === 'merge') return mergeRun();
+  if(S.imp.kind === 'split') return splitRun();
   const I = S.imp, items = I.items.filter(x => x.on); if(!items.length) return;
   let have = 0; for(const k in S.notes) have += S.notes[k].size;
   const add = items.reduce((a, x) => a + (x.g ? x.g.notes.length : x.rows.length), 0);
@@ -2337,7 +2375,7 @@ function statsOf(d, days){
     let b = by.get(k); if(!b) by.set(k, b = {g: [0, 0, 0, 0, 0], sec: 0}); b.g[e.g]++; b.sec += e.sec;
     let sg = stage.get(e.st); if(!sg) stage.set(e.st, sg = [0, 0, 0, 0, 0]); sg[e.g]++;
     const ck = e.nid + '/' + e.tid; let c = card.get(ck); if(!c) card.set(ck, c = {nid: e.nid, tid: e.tid, n: 0, miss: 0, last: 0}); c.n++; if(e.g < 2) c.miss++; c.last = e.g;
-    let r = row.get(e.nid); if(!r) row.set(e.nid, r = {n: 0, miss: 0}); r.n++; if(e.g < 2) r.miss++;
+    let r = row.get(e.nid); if(!r) row.set(e.nid, r = {n: 0, miss: 0, sum: 0, g: [0, 0, 0, 0, 0]}); r.n++; if(e.g < 2) r.miss++; r.sum += e.g; r.g[e.g]++;
     if(e.hit && e.g < 2){ const kk = e.nid + '>' + e.hit; conf.set(kk, (conf.get(kk) || 0) + 1); }
     n++; mix[e.g]++; if(e.g >= 2) right++; sec += e.sec;
   }
@@ -2359,10 +2397,15 @@ function colChart(cols, o = {}){
       return `<div class="colw${c.mark ? ' mark' : ''}" data-tip="${esc(c.tip)}" tabindex="0" aria-label="${esc(c.tip.replace(/\n/g, ', '))}"><div class="colbar" style="height:${Hpx}px">${c.segs.filter(s => s.v).map(s => `<i class="${s.cls}" style="height:${Math.max(2, s.v / max * Hpx - 2).toFixed(1)}px"></i>`).join('')}</div><span class="xl">${c.mark || (i % step === 0 && !cols.slice(i + 1, i + step).some(x => x.mark)) ? esc(c.label) : ''}</span></div>`; }).join('')}</div></div>`;
 }
 const ANS = ['a0', 'a1', 'a2', 'a3', 'a4'];
+/* how well each shape is known, against this map's own average: the mean answer (No idea 0 … No brainer 4) per row.
+   Violet = every answer Easy or No brainer; green = above your average here (deeper = better); red = below it (deeper = worse). */
+function heatAvg(d, f, st){ let n = 0, sum = 0; for(const x of notesOf(d).values()){ const r = st.row.get(x.id); if(r && regOf(x, f.id).length){ n += r.n; sum += r.sum; } } return n ? sum / n : 0; }
 function heatHtml(d, f, st){
-  const H = 1000 * (f.ar || 1), hs = +H.toFixed(1), v = VIEW.stat, vec = f.map === 'vec';
-  const shapes = sortedNotes(d).map(n => { const p = regOf(n, f.id), r = st.row.get(n.id); if(!p.length || !r) return ''; const share = r.miss / r.n;
-    return `<path class="hm" fill-rule="evenodd" style="fill-opacity:${(share ? 0.14 + share * 0.74 : 0).toFixed(2)}" d="${dOf(p, H)}" data-tip="${esc(rowLabel(d, n) + '\n' + r.miss + ' of ' + r.n + ' missed (' + Math.round(share * 100) + '%)')}"/>`; }).join('');
+  const H = 1000 * (f.ar || 1), hs = +H.toFixed(1), v = VIEW.stat, vec = f.map === 'vec', avg = heatAvg(d, f, st);
+  const shapes = sortedNotes(d).map(n => { const p = regOf(n, f.id), r = st.row.get(n.id); if(!p.length || !r) return ''; const mean = r.sum / r.n, top = r.g[3] + r.g[4] === r.n;
+    let cls, op; if(top){ cls = 'top'; op = 0.7; } else if(mean >= avg){ cls = 'ok'; op = 0.2 + 0.65 * Math.min(1, (mean - avg) / Math.max(0.5, 4 - avg)); } else { cls = ''; op = 0.2 + 0.65 * Math.min(1, (avg - mean) / Math.max(0.5, avg)); }
+    const mix = [[r.g[0] + r.g[1], 'missed'], [r.g[2], 'hard'], [r.g[3] + r.g[4], 'easy or no brainer']].filter(x => x[0]).map(x => x[0] + ' ' + x[1]).join(', ');
+    return `<path class="hm${cls ? ' ' + cls : ''}" fill-rule="evenodd" style="fill-opacity:${op.toFixed(2)}" d="${dOf(p, H)}" data-tip="${esc(rowLabel(d, n) + '\n' + pl(r.n, 'answer') + ': ' + mix + '\n' + (top ? 'always easy' : mean >= avg ? 'better than your average here' : 'worse than your average here'))}"/>`; }).join('');
   return `<div class="rmap${vec ? ' vec' : ''}" data-z="stat" data-h="${hs}" style="aspect-ratio:1000/${hs};width:min(100%,calc(var(--mh,60vh)*${(1000 / H).toFixed(4)}))"><svg viewBox="${vbOf(v, hs)}" preserveAspectRatio="none">` +
     (vec ? `<rect class="sea" width="1000" height="${hs}"/>` + baseOf(d, f) : `<image href="${esc(f.map)}" width="1000" height="${hs}" preserveAspectRatio="none"/>`) + shapes + `</svg>` +
     `<div class="zc"><button data-act="zoom" data-v="in" title="Zoom in" aria-label="Zoom in">+</button><button data-act="zoom" data-v="out" title="Zoom out" aria-label="Zoom out">−</button><button data-act="zoom" data-v="fit" title="Show the whole map" aria-label="Show the whole map">⤢</button></div></div>`;
@@ -2398,8 +2441,8 @@ function vStats(d){
   /* maps */
   const mf = d.fields.filter(f => f.kind === 'region' && f.map && d.types.some(t => t.click === f.id));
   const pairs = [...st.conf.entries()].map(([k, v]) => { const [a, b] = k.split('>'); return {a: name(a), b: name(b), v}; }).filter(x => x.a && x.b).sort((a, b) => b.v - a.v).slice(0, 12);
-  const maps = mf.length ? `<h2>Where you miss on the map</h2><p class="muted small">Each shape you have answered is shaded by the share of answers you missed in this period; unshaded shapes have no answers yet or no misses. Hover a shape for its numbers.</p>
-    ${mf.map(f => `<div class="panel">${mf.length > 1 ? `<h3>${esc(f.name)}</h3>` : ''}<div id="statmap">${heatHtml(d, f, st)}</div><div class="row small muted"><span>fewer misses</span><span class="ramp">${[0.14, 0.33, 0.51, 0.7, 0.88].map(o => `<i style="opacity:${o}"></i>`).join('')}</span><span>more misses</span></div></div>`).join('')}
+  const maps = mf.length ? `<h2>How well you know the map</h2><p class="muted small">Each shape you have answered in this period is coloured against your own average on this map, counting No idea as 0 up to No brainer as 4. Violet: every answer was Easy or No brainer. Green: better than your average, deeper the better. Red: worse than your average, deeper the worse. Unshaded shapes have no answers in this period. Hover a shape for its numbers.</p>
+    ${mf.map(f => `<div class="panel">${mf.length > 1 ? `<h3>${esc(f.name)}</h3>` : ''}<div id="statmap">${heatHtml(d, f, st)}</div><div class="row small muted hmkey"><span><span class="ramp top"><i style="opacity:.7"></i></span>always Easy or No brainer</span><span><span class="ramp ok">${[0.85, 0.63, 0.42, 0.2].map(o => `<i style="opacity:${o}"></i>`).join('')}</span>better than your average</span><span><span class="ramp">${[0.2, 0.42, 0.63, 0.85].map(o => `<i style="opacity:${o}"></i>`).join('')}</span>worse than your average</span></div></div>`).join('')}
     <h3>What you clicked instead</h3>${pairs.length ? `<div class="tablewrap"><table><thead><tr><th style="width:auto;text-align:left">Asked for</th><th>You clicked</th><th>Times</th></tr></thead><tbody>${pairs.map(x => `<tr><td style="width:auto;text-align:left">${esc(x.a)}</td><td>${esc(x.b)}</td><td class="mono">${x.v}</td></tr>`).join('')}</tbody></table></div>` : `<p class="muted small">No wrong clicks on another shape in this period.</p>`}` : '';
   return head + tiles + `
     <div class="sgrid"><div class="panel"><h3>Answers per day</h3>${colChart(dayCols)}${table}</div>
@@ -2705,11 +2748,69 @@ async function mergeRun(){
   S.cur = A.id; S.view = 'deck'; S.tab = 'study'; S.study.on = false; clearTimeout(S.study.timer); S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''};
   render(); renderImp();
 }
+/* ---------- split: whole clusters leave the deck for new decks, with their rows, progress and answer log ----------
+   plan[clusterId] = {go: moves out, name: name of the deck it goes to}; clusters given the same name end up in one new deck. */
+function splitPlan(d){ const P = {}; d.clusters.forEach((c, i) => { P[c.id] = {go: i > 0, name: d.name + ' · ' + c.name}; }); return P; }
+function splitGroups(I){ const d = S.decks[I.from], by = new Map();
+  for(const c of d.clusters){ const p = I.plan[c.id]; if(!p || !p.go) continue; const nm = (p.name || '').trim() || d.name + ' · ' + c.name; if(!by.has(nm)) by.set(nm, []); by.get(nm).push(c); }
+  return [...by].map(([name, cls]) => ({name, cls})); }
+function splitSum(I, per){ const d = S.decks[I.from], G = splitGroups(I), stay = d.clusters.filter(c => !I.plan[c.id].go), moving = d.clusters.filter(c => I.plan[c.id].go).reduce((a, c) => a + per.get(c.id), 0);
+  return G.length ? `<ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px">${G.map(g => `<li>New deck <b>${esc(g.name)}</b>: ${g.cls.map(c => '“' + esc(c.name) + '”').join(', ')}, ${pl(g.cls.reduce((a, c) => a + per.get(c.id), 0), 'row')}.</li>`).join('')}
+      <li>${esc(d.name)} keeps ${stay.map(c => '“' + esc(c.name) + '”').join(', ')}, ${pl(notesOf(d).size - moving, 'row')}.</li></ul>` : ''; }
+function splitBody(I){
+  const d = S.decks[I.from]; if(!d) return '';
+  const per = new Map(d.clusters.map(c => [c.id, 0])); for(const n of notesOf(d).values()){ const c = clusterOf(d, n).id; per.set(c, per.get(c) + 1); }
+  if(d.clusters.length < 2) return `<p>This deck has one cluster, so there is nothing to split along yet.</p>
+    <p class="muted small">First give the rows that should leave a cluster of their own: in the Schedule tab add a cluster (it starts as a copy of a ladder), then in the Cards tab tick the rows and use “Move to cluster”. Come back here and each cluster can become its own deck.</p>
+    <div class="row"><span class="grow"></span><button class="btn" data-act="impClose">Close</button></div>`;
+  const G = splitGroups(I), stay = d.clusters.filter(c => !I.plan[c.id].go), moving = d.clusters.filter(c => I.plan[c.id].go).reduce((a, c) => a + per.get(c.id), 0);
+  return `<p class="muted small">Each cluster either stays in <b>${esc(d.name)}</b> or moves to a new deck with its rows, their progress and their answer history. Give two clusters the same deck name to put them into one new deck. The new decks copy this deck’s columns, card types, limits, map settings and folder.</p>
+    <div class="panel splitp">${d.clusters.map(c => { const p = I.plan[c.id];
+      return `<div class="sprow"><span><b>${esc(c.name)}</b> <span class="mono small muted">${pl(per.get(c.id), 'row')}</span></span>
+        <select data-sp="${c.id}" id="sp-${c.id}" aria-label="Where ${esc(c.name)} goes"><option value="stay"${p.go ? '' : ' selected'}>Stays here</option><option value="go"${p.go ? ' selected' : ''}>Moves to a new deck</option></select>
+        ${p.go ? `<input data-spn="${c.id}" id="spn-${c.id}" value="${esc(p.name)}" aria-label="Name of the new deck for ${esc(c.name)}">` : '<span></span>'}</div>`; }).join('')}</div>
+    <div id="sp-sum">${splitSum(I, per)}</div>
+    ${!stay.length ? `<div class="banner">At least one cluster has to stay in ${esc(d.name)}.</div>` : ''}
+    ${d.fields.some(f => f.kind === 'region') ? `<p class="muted small">On a click map each deck only knows its own rows: after the split, a click into an area that went to the other deck counts as far away, and “wrong but close” links to rows in the other deck are dropped.</p>` : ''}
+    <p class="muted small">A snapshot of the current state is saved first; you find it under Settings → Backups.</p>
+    <div class="row"><span class="grow"></span><button class="btn ghost" data-act="impClose">Cancel</button><button class="btn pri" data-act="impRun" id="sp-run"${G.length && stay.length ? '' : ' disabled'}>Split</button></div>`;
+}
+async function splitRun(){
+  const I = S.imp, A = S.decks[I.from]; if(!A) return; const G = splitGroups(I);
+  if(!G.length || G.reduce((a, g) => a + g.cls.length, 0) >= A.clusters.length) return;
+  I.step = 'run'; I.msg = 'Saving a snapshot of the current state first…'; renderImp(); await snapshot('Before splitting ' + A.name);
+  const am = notesOf(A), made = [], movedAll = new Set(); let t0 = Date.now();
+  for(const g of G){
+    const ids = new Set(g.cls.map(c => c.id)), B = normDeck(clone(A));
+    B.id = uid(); B.name = g.name; B.created = Math.max(t0++, (A.created || 0) + 1); B.clusters = clone(g.cls);
+    const bm = new Map(), mine = new Set(); for(const n of am.values()) if(ids.has(clusterOf(A, n).id)) mine.add(n.id);
+    for(const id of mine){ const n = clone(am.get(id)); bm.set(id, n); movedAll.add(id); }
+    S.decks[B.id] = B; S.notes[B.id] = bm;
+    for(const n of bm.values()){ if(n.r) for(const k in n.r){ const c = n.r[k].close; if(c){ n.r[k].close = c.filter(x => mine.has(x)); if(!n.r[k].close.length) delete n.r[k].close; } } }
+    // its share of the answer log: lines about its rows, kept under the same row and card type ids
+    const docs = [...logsOf(A).values()].map(x => ({id: x.id, e: x.e.filter(s => mine.has(parseLog(s).nid))})).filter(x => x.e.length);
+    addLogs(B, docs, id => mine.has(id) ? id : '', id => id);
+    const fo = S.meta.folders[A.id]; if(fo) S.meta.folders[B.id] = fo.slice();
+    for(const gr of S.meta.groups || []) if(gr.decks.includes(A.id)) gr.decks.push(B.id);
+    saveDeck(B); for(const n of bm.values()) saveNote(B, n);
+    made.push({d: B, rows: bm.size});
+  }
+  // what is left in A: the rows that stayed, without links to rows that left, and their own log lines
+  for(const id of movedAll){ const n = am.get(id); save(notePath(A, n), null); am.delete(id); }
+  for(const n of am.values()){ let ch = false; if(n.r) for(const k in n.r){ const c = n.r[k].close; if(c && c.some(x => movedAll.has(x))){ n.r[k].close = c.filter(x => !movedAll.has(x)); if(!n.r[k].close.length) delete n.r[k].close; ch = true; } } if(ch) saveNote(A, n); }
+  for(const [k, doc] of logsOf(A)){ const keep = doc.e.filter(s => !movedAll.has(parseLog(s).nid)); if(keep.length === doc.e.length) continue;
+    if(keep.length){ doc.e = keep; save(logPath(A, k), doc); } else { logsOf(A).delete(k); save(logPath(A, k), null); } }
+  const goneCl = new Set(G.flatMap(g => g.cls.map(c => c.id))); A.clusters = A.clusters.filter(c => !goneCl.has(c.id)); saveDeck(A); saveMeta();
+  geoVer++; ctxC.clear();
+  I.step = 'done'; I.msg = 'Split ' + esc(A.name) + ': ' + made.map(x => '<b>' + esc(x.d.name) + '</b> (' + pl(x.rows, 'row') + ')').join(', ') + ' made; ' + esc(A.name) + ' keeps ' + pl(am.size, 'row') + '.';
+  S.view = 'deck'; S.tab = 'cards'; S.study.on = false; clearTimeout(S.study.timer); S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''};
+  render(); renderImp();
+}
 /* ---------- actions ---------- */
 const ACT = {
-  open(d, v){ S.cur = v; S.sideOpen = false; S.sideQ = ''; S.study.scope = null; S.study.home = false; S.view = 'deck'; S.setMsg = ''; S.pick = null; S.study.on = false; S.study.cluster = ''; S.study.filt = null; S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''}; S.confirm = null; render(); },
+  open(d, v){ S.cur = v; S.sideOpen = false; S.sideQ = ''; S.study.scope = null; S.study.home = false; S.view = 'deck'; S.setMsg = ''; S.pick = null; S.study.on = false; S.study.cluster = ''; S.study.filt = null; S.cards = {q: '', cluster: '', page: 0, sel: new Set(), imp: false, msg: ''}; S.confirm = null; render(); toTop(); },
   tab(d, v){ S.tab = v; S.confirm = null; S.cards.msg = ''; S.setMsg = ''; S.pick = null; render(); },
-  settings(){ S.view = 'settings'; S.setMsg = ''; S.confirm = null; S.study.on = false; S.study.scope = null; clearTimeout(S.study.timer); render(); loadUsage(); },
+  settings(){ S.view = 'settings'; S.setMsg = ''; S.confirm = null; S.study.on = false; S.study.scope = null; clearTimeout(S.study.timer); render(); toTop(); loadUsage(); },
   bkLater(){ S.meta.snooze = Date.now(); saveMeta(); render(); },
   async snapNow(){ if(S.busy) return; const r = await snapshot('Saved by hand'); S.setMsg = r === 'same' ? 'Nothing has changed since the newest snapshot, so no new one was needed.' : r ? 'Snapshot saved.' : (S.snapErr || 'The snapshot could not be saved.'); loadUsage(); render(); },
   async snapDel(d, v){ if(S.busy) return; S.confirm = null; S.busy = 'Deleting…'; setStatus(); try{ await metaFresh(); await snapRemove(v); saveMeta(); }finally{ S.busy = ''; } loadUsage(); render(); },
@@ -2774,6 +2875,9 @@ const ACT = {
   pickSched(d){ const P = S.pick, cl = P && d.clusters.find(c => c.id === P.cl), src = P && S.lib.find(x => x.id === P.sid); S.pick = null; if(cl && src){ applyLadder(cl, src); saveDeck(d); S.setMsg = '“' + src.name + '” applied to ' + cl.name + '.'; } render(); },
   pickCancel(){ S.pick = null; render(); },
   mergeOpen(d){ S.imp = {step: 'merge', kind: 'merge', file: '', into: d.id, on: new Set(), del: true}; renderImp(); },
+  cardsView(d, v){ const was = S.cards.view; S.cards.view = v === 'map' ? 'map' : ''; if(S.cards.view && !was){ const f = ovFields(d).find(x => x.id === S.cards.ovf) || ovFields(d)[0];
+      Object.assign(VIEW.ov, f && f.home ? clampView({...f.home, r: phoneR(f)}) : {k: 1, x: 0, y: 0, r: f ? phoneR(f) : 1}); } render(); },
+    splitOpen(d){ S.imp = {step: 'split', kind: 'split', file: '', from: d.id, plan: splitPlan(d)}; renderImp(); },
   newDeck(){ const d = mkDeck('New deck'); S.decks[d.id] = d; S.notes[d.id] = new Map(); S.view = 'deck'; S.cur = d.id; S.tab = 'cards'; S.study.on = false; saveDeck(d); render(); const i = $('#deck-name'); if(i){ i.focus(); i.select(); } },
   ask(d, v){ S.confirm = v; render(); if(S.ms) renderMs(); },
   cancel(){ S.confirm = null; render(); if(S.ms) renderMs(); },
@@ -2786,7 +2890,7 @@ const ACT = {
     S.busy = ''; setStatus(); if(!S.study.on) render(); },
   start(d){ const st = S.study; homeView(d); st.scope = null; st.home = false; st.on = true; st.early = false; st.extra = 0; st.over = 0; st.lastCard = null; st.undo = null; st.last = null; pick(d); render(); },
   stop(){ const st = S.study; st.on = false; clearTimeout(st.timer); if(st.scope || st.home) S.view = 'home'; st.scope = null; st.home = false; render(); },
-  home(){ if(!Object.keys(S.decks).length) return; S.view = 'home'; S.homeMsg = ''; S.confirm = null; S.study.on = false; S.study.scope = null; clearTimeout(S.study.timer); render(); },
+  home(){ if(!Object.keys(S.decks).length) return; S.view = 'home'; S.homeMsg = ''; S.confirm = null; S.study.on = false; S.study.scope = null; clearTimeout(S.study.timer); render(); toTop(); },
   studyAll(){ startScope(allDecks().map(d => d.id), 'All decks'); },
   studyGroup(d, v){ const g = S.meta.groups.find(g => g.id === v); if(g) startScope(allDecks().map(d => d.id).filter(id => g.decks.includes(id)), g.name); },
   studySel(){ const ids = allDecks().map(d => d.id).filter(id => S.homeSel.has(id)); startScope(ids, pl(ids.length, 'deck')); },
@@ -2850,7 +2954,7 @@ const ACT = {
     openEd(d, n, fid); },
   mapLook(d, v){ const f = d.fields.find(f => f.id === v); if(!f) return; if(isGm(f)) delete f.style; else f.style = 'gmap'; geoVer++; saveDeck(d); render(); },
   sideTog(){ S.sideOpen = !S.sideOpen; renderSide(); },
-  labels(d, v, b){ labelsOn = !labelsOn; try{ localStorage.setItem('stufen-labels', labelsOn ? '1' : '0'); }catch(e){} $$('.rmap.gm[data-w]:not([data-q])').forEach(rm => rm.classList.toggle('nolab', !labelsOn)); b.classList.toggle('on', labelsOn); gSync(); },
+  labels(d, v, b){ labelsOn = !labelsOn; try{ localStorage.setItem('stufen-labels', labelsOn ? '1' : '0'); }catch(e){} $$('.rmap[data-w]:not([data-q])').forEach(rm => rm.classList.toggle('nolab', !labelsOn)); b.classList.toggle('on', labelsOn); gSync(); },
   zoom(d, v, b){ const rm = b.closest('.rmap'), w = curView(rm.dataset.z); if(v === 'fit'){ const hm = rm.dataset.home && rm.dataset.home.split(',').map(Number), at = hm && Math.abs(w.k - hm[0]) < 0.01 && Math.abs(w.x - hm[1]) < 0.005 && Math.abs(w.y - hm[2]) < 0.005; Object.assign(w, hm && !at ? {k: hm[0], x: hm[1], y: hm[2]} : {k: 1, x: 0, y: 0}); } else if(gLive(rm)) return gStep(rm, v === 'in' ? 1 : -1, 0.5, 0.5); else zoomAt(w, v === 'in' ? 1.6 : 1 / 1.6, 0.5, 0.5); gStop(); clearTimeout(G.snapT); G.gz = null; applyView(rm, w); },
   gType(d, v, b){ G.type = G.type === 'hybrid' ? 'roadmap' : 'hybrid'; try{ localStorage.setItem('stufen-gtype', G.type); }catch(e){} $$('.rmap.gg').forEach(rm => { rm.classList.toggle('sat', G.type === 'hybrid'); const x = $('[data-act="gType"]', rm); if(x) x.classList.toggle('on', G.type === 'hybrid'); }); gSync(); },
   gOff(){ G.off = !G.off; try{ localStorage.setItem('stufen-gmap', G.off ? '0' : '1'); }catch(e){} if(G.off && G.div) G.div.remove(); ctxC.clear(); render(); },
@@ -2955,6 +3059,7 @@ document.addEventListener('input', e => {
   const t = e.target, d = S.decks[S.cur];
   if(t.id === 'deck-q'){ S.sideQ = t.value; const pos = t.selectionStart; renderSide(); const i = $('#deck-q'); if(i){ i.focus(); try{ i.setSelectionRange(pos, pos); }catch(err){} } return; }
   if(t.dataset.ce){ if(S.ce) S.ce.vals[t.dataset.ce] = t.value; return; }
+  if(t.dataset.spn){ if(S.imp && S.imp.plan){ S.imp.plan[t.dataset.spn].name = t.value; const d = S.decks[S.imp.from], per = new Map(d.clusters.map(c => [c.id, 0])); for(const n of notesOf(d).values()){ const c = clusterOf(d, n).id; per.set(c, per.get(c) + 1); } const b = $('#sp-sum'); if(b) b.innerHTML = splitSum(S.imp, per); } return; }
   if(t.dataset.gname){ const g = S.meta.groups.find(g => g.id === t.dataset.gname); if(g){ g.name = t.value; saveMeta(); renderSide(); } return; }
   if(t.id === 'grp-name') return;
   if(t.id === 'fo-a' || t.id === 'fo-b'){ S.fo[t.id === 'fo-a' ? 'a' : 'b'] = t.value; return; }
@@ -3014,6 +3119,8 @@ function onChange(e){
   if(t.id === 'hs-all'){ S.homeSel = new Set(t.checked ? Object.keys(S.decks) : []); S.homeMsg = ''; render(); return; }
   if(t.dataset.mg){ t.checked ? S.imp.on.add(t.dataset.mg) : S.imp.on.delete(t.dataset.mg); renderImp(); return; }
   if(t.id === 'mg-del'){ S.imp.del = t.checked; return; }
+  if(t.dataset.sp){ S.imp.plan[t.dataset.sp].go = t.value === 'go'; renderImp(); return; }
+  if(t.dataset.spn) return;   // kept while typing (input), so a click on Split right after typing is not lost to a redraw
   if(t.dataset.apply){ t.checked ? S.ticks.add(t.dataset.apply) : S.ticks.delete(t.dataset.apply); return; }
   if(t.dataset.libpick != null && 'libpick' in t.dataset){ if(t.value){ S.pick = {cl: t.closest('[data-cl]').dataset.cl, sid: t.value}; render(); } return; }
   if(t.dataset.stg || t.dataset.stgk || t.dataset.mv || (t.dataset.clf && t.dataset.clf !== 'name')){ const L = ladderOf(t); if(!L) return; const cl = L.cl;
@@ -3023,6 +3130,7 @@ function onChange(e){
     else { const k = t.dataset.clf; cl[k] = k === 'end' ? t.value : Math.min(10, Math.max(1.1, +t.value || 2)); L.save(); render(); }
     return; }
   if(!d) return;
+  if(t.id === 'ov-f'){ S.cards.ovf = t.value; Object.assign(VIEW.ov, {k: 1, x: 0, y: 0}); render(); return; }
   if(t.id === 'study-cluster'){ S.study.cluster = t.value; render(); }
   else if(t.id === 'study-ff'){ const c = filtCols(d).find(c => c.f.id === t.value); S.study.filt = c ? {f: c.f.id, v: c.vals[0][0]} : null; render(); }
   else if(t.id === 'study-fv'){ if(S.study.filt){ S.study.filt.v = t.value; render(); } }
